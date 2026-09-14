@@ -24,9 +24,10 @@ const photoUrl = (server, id, secret, size) =>
 const ARMS    = 3;
 const TURNS   = 2.1;
 const R_INNER = 80;
-const R_OUTER = 880;
+const R_OUTER = 1010;   // desserre : il faut du fond pour saisir le champ
 const K_START = 0.62;
 const K_COVER = 0.55;      // au-dela, les pastilles deviennent des couvertures
+const K_ENTER = 3.2;       // au-dela, la planete centree s'ouvre d'elle-meme
 
 const esc = t => String(t || "").replace(/[&<>"]/g,
   c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -127,9 +128,12 @@ function makeField(stage, world, opts){
     zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0016));
   }, { passive: false });
 
+  // On glisse depuis n'importe ou, y compris depuis une planete : sur un ecran
+  // tactile, il n'y a pas assez de fond entre les objets pour saisir le champ.
+  // Ce qui distingue un clic d'un deplacement, c'est la distance parcourue.
   stage.addEventListener("pointerdown", e => {
-    if (!enabled || e.target.closest("[data-item]")) return;
-    drag = { px: e.clientX, py: e.clientY, tx: target.x, ty: target.y };
+    if (!enabled) return;
+    drag = { px: e.clientX, py: e.clientY, tx: target.x, ty: target.y, moved: false };
     lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
     vx = vy = 0;
     stage.setPointerCapture(e.pointerId);
@@ -142,6 +146,7 @@ function makeField(stage, world, opts){
     vx = (e.clientX - lastX) / dt;
     vy = (e.clientY - lastY) / dt;
     lastX = e.clientX; lastY = e.clientY; lastT = now;
+    if (Math.abs(e.clientX - drag.px) + Math.abs(e.clientY - drag.py) > 6) drag.moved = true;
     target.x = drag.tx + (e.clientX - drag.px);
     target.y = drag.ty + (e.clientY - drag.py);
     view.x = target.x; view.y = target.y;      // pas de retard pendant le geste
@@ -150,6 +155,7 @@ function makeField(stage, world, opts){
 
   const release = () => {
     if (!drag) return;
+    o.lastDragMoved = drag.moved;
     drag = null;
     stage.classList.remove("dragging");
     target.x += Math.max(-700, Math.min(700, vx * 150));    // inertie
@@ -180,6 +186,7 @@ function makeField(stage, world, opts){
 
   return {
     view, target, kick, zoomAt, centreOn, showAll,
+    dragged(){ return !!o.lastDragMoved; },
     setBounds(b){ bounds = b; },
     fitScale(){ return fitK; },
     enable(v){ enabled = v; },
@@ -210,7 +217,7 @@ function layoutGalaxy(){
 
     let x = rad * Math.cos(ang), y = rad * Math.sin(ang), guard = 0;
     while (guard++ < 500 &&
-           placed.some(p => Math.hypot(p.x - x, p.y - y) < p.r + r + 5)) {
+           placed.some(p => Math.hypot(p.x - x, p.y - y) < p.r + r + 16)) {
       rad += r * 0.45;
       x = rad * Math.cos(ang); y = rad * Math.sin(ang);
     }
@@ -244,7 +251,11 @@ function renderGalaxy(){
     d.style.width  = d.style.height = (node.r * 2) + "px";
     d.style.color  = ramp(node.t);
     d.title = `${node.a.t} — ${node.a.n} photos`;
-    d.onclick = e => { e.stopPropagation(); enterAlbum(node); };
+    d.onclick = e => {
+      e.stopPropagation();
+      if (galaxy.dragged()) return;      // c'etait un deplacement, pas un clic
+      enterAlbum(node);
+    };
     node.el = d;
     if (node.a.p && node.a.s && node.a.c) {
       node.cover = photoUrl(node.a.s, node.a.p, node.a.c, "q");
@@ -311,6 +322,26 @@ function updateDetail(view){
   });
 
   placeLabels(k);
+  maybeEnter(k);
+}
+
+// Continuer a zoomer sur un album centre revient a vouloir y entrer : le geste
+// se prolonge au lieu de buter sur une limite. Un delai apres une sortie evite
+// d'y retomber aussitot.
+let enterLock = 0;
+
+function maybeEnter(k){
+  if (k < K_ENTER || performance.now() < enterLock) return;
+  if (!document.getElementById("album").hidden) return;
+
+  const cx = innerWidth / 2, cy = innerHeight / 2;
+  let best = null, bestD = Infinity;
+  nodes.forEach(n => {
+    if (!n.onScreen) return;
+    const d = Math.hypot(n.sx - cx, n.sy - cy);
+    if (d < n.r * k && d < bestD) { best = n; bestD = d; }
+  });
+  if (best) { enterLock = performance.now() + 1200; enterAlbum(best); }
 }
 
 /* --- 7. labels ---------------------------------------------------------- */
@@ -434,7 +465,11 @@ async function enterAlbum(node){
     d.style.width  = d.style.height = S + "px";
     d.style.backgroundImage = `url(${photoUrl(p.server, p.id, p.secret, "q")})`;
     d.title = p.title || "";
-    d.onclick = e => { e.stopPropagation(); openLight(i); };
+    d.onclick = e => {
+      e.stopPropagation();
+      if (albumField.dragged()) return;
+      openLight(i);
+    };
     frag.appendChild(d);
   });
   pworld.appendChild(frag);
@@ -459,6 +494,12 @@ function leaveAlbum(){
   document.getElementById("pworld").innerHTML = "";
   if (albumField) albumField.enable(false);
   galaxy.enable(true);
+  enterLock = performance.now() + 1200;
+  // On recule sous le seuil d'entree, sinon la planete encore centree se
+  // rouvrirait immediatement.
+  if (galaxy.target.k > K_ENTER * 0.85) {
+    galaxy.zoomAt(innerWidth / 2, innerHeight / 2, (K_ENTER * 0.8) / galaxy.target.k);
+  }
   galaxy.kick();
 }
 
