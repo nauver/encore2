@@ -11,6 +11,11 @@
 </head>
 <body>
 
+<!-- ---------------------------------------------------------------------
+     The galaxy
+     ------------------------------------------------------------------ -->
+<div id="stage"><div id="world"></div></div>
+
 <header>
   <div>
     <h1>CoRstellation</h1>
@@ -21,53 +26,47 @@
   </nav>
 </header>
 
-<div id="stage">
-  <div id="world"></div>
-</div>
-
 <div id="years" aria-hidden="true"></div>
 
-<!-- Vue album : on entre dedans, le champ s'efface derriere -->
+<div id="hud">
+  <button id="zoomIn"  aria-label="Zoom in">+</button>
+  <button id="zoomOut" aria-label="Zoom out">−</button>
+  <button id="showAll">All</button>
+</div>
+
+<p id="hint">drag to move · scroll or pinch to zoom · click an album to open it</p>
+<p id="notice" hidden></p>
+
+<!-- ---------------------------------------------------------------------
+     Inside an album
+     ------------------------------------------------------------------ -->
 <section id="album" hidden>
   <header class="abar">
-    <button id="back" aria-label="Back to the constellation">← Back</button>
+    <button id="back">← Back</button>
     <div>
       <h2 id="aTitle"></h2>
       <p id="aMeta"></p>
     </div>
     <a id="aFlickr" target="_blank" rel="noopener">Open on Flickr</a>
   </header>
-  <div id="grid" role="list"></div>
+  <div id="grid"></div>
   <p id="aMore" hidden></p>
 </section>
 
-<!-- Photo en grand -->
+<!-- ---------------------------------------------------------------------
+     One photograph, large
+     ------------------------------------------------------------------ -->
 <div id="light" hidden>
-  <button id="lClose" aria-label="Close">×</button>
-  <button id="lPrev" aria-label="Previous">‹</button>
-  <img id="lImg" alt="">
-  <button id="lNext" aria-label="Next">›</button>
-  <p id="lCap"></p>
+  <button id="lightClose" aria-label="Close">×</button>
+  <button id="lightPrev"  aria-label="Previous">‹</button>
+  <img id="lightImg" alt="">
+  <button id="lightNext"  aria-label="Next">›</button>
+  <p id="lightCap"></p>
 </div>
 
-<aside id="panel" hidden>
-  <button class="close" id="close" aria-label="Close">×</button>
-  <h2 id="pTitle"></h2>
-  <p class="meta" id="pMeta"></p>
-  <a class="open" id="pOpen" target="_blank" rel="noopener">Open the album on Flickr</a>
-</aside>
-
-<div id="hud">
-  <button id="zIn"  aria-label="Zoom in">+</button>
-  <button id="zOut" aria-label="Zoom out">−</button>
-  <button id="fit">Fit</button>
-</div>
-
-<p id="notice" hidden></p>
-<p id="hint">drag to move · zoom in for the covers · click an album to enter it</p>
-
-<!-- Cle publique de l'application Flickr du CoR : elle identifie l'application
-     et ne donne aucun droit d'ecriture. A remplacer par la votre. -->
+<!-- Public Flickr application key of the CoR. It identifies the application
+     and grants no write access. The application secret is not here and is not
+     needed to read public photographs. -->
 <script>window.FLICKR_KEY = "7ffcea1edea88202e277b41b0f0e2971";</script>
 <script src="data/albums.js"></script>
 <script src="assets/corstellation.js"></script>

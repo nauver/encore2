@@ -1,45 +1,55 @@
 /* =========================================================================
-   CoRstellation — fifteen years of CoR photo albums
-   Purpose: fifteen years of CoR photo albums as one navigable field.
-   Sections: 1 state · 2 layout · 3 render · 4 view loop · 5 input
-             6 panel · 7 boot
+   CoRstellation — fifteen years of CoR photo albums, as one navigable field
 
-   Two choices drive the feel:
+   1 configuration · 2 colour ramp · 3 state · 4 layout · 5 render
+   6 view loop · 7 level of detail · 8 input · 9 album view · 10 lightbox
+   11 boot
+
+   Two decisions drive the feel:
    - the world is a single transformed layer, so panning and zooming are
      composited by the GPU rather than re-laid out on every frame;
    - the view is animated towards a target rather than set directly, which
-     gives inertia on release and a smooth glide when zooming. That is what
-     makes it usable on a wall display, where abrupt jumps read as glitches.
+     gives momentum on release and a glide when zooming. On a large screen an
+     abrupt jump reads as a fault rather than as movement.
    ========================================================================= */
 
-/* --- 1. state ----------------------------------------------------------- */
+/* --- 1. configuration --------------------------------------------------- */
 
-// Cle publique de l'application Flickr du CoR. Elle identifie l'application,
-// elle ne donne aucun droit d'ecriture : toute page qui appelle l'API depuis le
-// navigateur expose la sienne. Le secret, lui, n'apparait jamais ici.
-const FLICKR_KEY = window.FLICKR_KEY || "METTRE_LA_CLE_ICI";
+const FLICKR_KEY  = window.FLICKR_KEY || "METTRE_LA_CLE_ICI";
 const FLICKR_NSID = "62673028@N02";
-
-const ALBUMS = window.CORSTELLATION_ALBUMS || [];
+const ALBUMS      = window.CORSTELLATION_ALBUMS || [];
 
 // https://live.staticflickr.com/{server}/{id}_{secret}_{size}.jpg
-// q = 150 px carre, n = 320 px, z = 640 px. On reste petit : ce sont des
-// vignettes dans un champ, pas des tirages.
+// q = 150 px square, n = 320 px, b = 1024 px.
 const photoUrl = (server, id, secret, size) =>
   `https://live.staticflickr.com/${server}/${id}_${secret}_${size}.jpg`;
-// Le temps se lit dans la couleur : bleu roi pour 2011, or pour 2026.
-// Une rampe continue plutot qu'une couleur par annee - l'oeil suit alors la
-// progression comme une temperature, pas comme un classement.
+
+const ARMS      = 3;        // bras de la spirale
+const TURNS     = 2.1;      // tours effectues du centre au bord
+const R_INNER   = 80;
+const R_OUTER   = 880;      // resserre : au-dela, les disques deviennent des
+                            // poussieres une fois la galaxie entiere a l'ecran
+const K_START   = 0.62;     // echelle d'ouverture : lisible d'emblee
+const K_MIN     = 0.10;
+const K_MAX     = 8;
+const K_COVER   = 0.55;     // au-dela, les pastilles deviennent des couvertures
+
+/* --- 2. colour ramp ----------------------------------------------------- */
+// Le temps se lit dans la couleur : bleu roi en 2011, or en 2026. Une rampe
+// continue plutot qu'une couleur par annee - l'oeil suit une progression,
+// comme une temperature, pas un classement.
+
 const RAMP = [
-  [222, 74, 38],   // bleu roi profond
-  [216, 78, 48],
-  [205, 72, 52],
-  [188, 58, 52],
-  [168, 45, 52],
-  [ 48, 82, 58],   // or
-  [ 42, 90, 62]
+  [224, 76, 52],
+  [214, 80, 58],
+  [199, 74, 58],
+  [180, 62, 58],
+  [ 96, 52, 58],
+  [ 52, 88, 62],
+  [ 44, 94, 66]
 ];
-function ramp(t){                       // t de 0 a 1
+
+function ramp(t){
   const x = Math.max(0, Math.min(0.999, t)) * (RAMP.length - 1);
   const i = Math.floor(x), f = x - i;
   const a = RAMP[i], b = RAMP[i + 1];
@@ -49,126 +59,135 @@ function ramp(t){                       // t de 0 a 1
   return `hsl(${h.toFixed(0)} ${s.toFixed(0)}% ${l.toFixed(0)}%)`;
 }
 
-const view   = { x:0, y:0, k:1 };        // ce qui est affiche
-const target = { x:0, y:0, k:1 };        // ce vers quoi on glisse
-let nodes = [], bounds = null, selected = null, raf = null;
+/* --- 3. state ----------------------------------------------------------- */
+
+const view   = { x: 0, y: 0, k: K_START };   // ce qui est affiche
+const target = { x: 0, y: 0, k: K_START };   // ce vers quoi on glisse
+
+let nodes  = [];
+let bounds = null;
+let raf    = null;
 
 const world = document.getElementById("world");
 const stage = document.getElementById("stage");
 
-const esc = t => String(t||"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-const yearOf = a => a.d.slice(0,4);
+const esc    = t => String(t || "").replace(/[&<>"]/g,
+  c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const yearOf = a => a.d.slice(0, 4);
 
-/* --- 2. layout: a spiral of time ---------------------------------------- */
-// Les albums sont ranges par date sur une spirale d'Archimede : 2011 au
-// centre, 2026 a la peripherie. La densite d'une annee se lit donc a l'oeil,
-// et le creux de 2020-2021 apparait comme une respiration dans le motif.
-// Chaque disque est ecarte tant qu'il chevauche un voisin : aucun
-// recouvrement, sans simulation physique.
+function notice(text){
+  const el = document.getElementById("notice");
+  if (!el) return;
+  el.textContent = text;
+  el.hidden = false;
+}
+
+/* --- 4. layout: a galaxy of time ---------------------------------------- */
+// Les albums sont ranges par date sur trois bras en spirale : 2011 au centre,
+// 2026 au bord. La densite d'une annee se lit d'un coup d'oeil, et le creux de
+// 2020-2021 apparait comme une respiration dans le motif.
 
 function layout(){
-  // Trois bras en spirale logarithmique, parcourus dans l'ordre chronologique.
-  // Le rayon croit avec le temps, l'angle tourne : on obtient la forme d'une
-  // galaxie plutot qu'un escargot regulier. Une dispersion aleatoire mais
-  // reproductible epaissit les bras et evite l'aspect trace au compas.
-  const N = ALBUMS.length;
-  const ARMS = 3, TURNS = 2.35, R0 = 130, R1 = 2600;
+  const n = ALBUMS.length;
 
-  // Generateur pseudo-aleatoire a graine : la disposition ne change pas d'un
-  // chargement a l'autre, ce qui compte pour un ecran qu'on regarde souvent.
+  // Generateur a graine : la disposition ne change pas d'un chargement a
+  // l'autre, ce qui compte pour un ecran qu'on regarde souvent.
   let seed = 20260914;
   const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
 
   const placed = [];
+
   nodes = ALBUMS.map((a, i) => {
-    const t   = N > 1 ? i / (N - 1) : 0;              // position dans le temps
-    const arm = i % ARMS;
-    const r   = 4 + 2.4 * Math.sqrt(a.n);
+    const t = n > 1 ? i / (n - 1) : 0;
+    const r = 4 + 2.1 * Math.sqrt(a.n);
 
-    let rad = R0 + (R1 - R0) * Math.pow(t, 0.82);
-    let ang = t * TURNS * Math.PI * 2 + arm * (Math.PI * 2 / ARMS);
+    let rad = R_INNER + (R_OUTER - R_INNER) * Math.pow(t, 0.78);
+    let ang = t * TURNS * Math.PI * 2 + (i % ARMS) * (Math.PI * 2 / ARMS);
 
-    // epaisseur du bras : dispersion angulaire et radiale
-    ang += (rnd() - 0.5) * 0.30;
-    rad *= 1 + (rnd() - 0.5) * 0.13;
+    ang += (rnd() - 0.5) * 0.34;          // epaisseur du bras
+    rad *= 1 + (rnd() - 0.5) * 0.14;
 
-    let x = rad * Math.cos(ang), y = rad * Math.sin(ang);
+    let x = rad * Math.cos(ang);
+    let y = rad * Math.sin(ang);
 
     // On ecarte le long du rayon tant qu'un voisin est touche : la structure
-    // en bras est preservee, contrairement a un ecartement dans n'importe
-    // quelle direction.
+    // en bras est preservee, contrairement a un ecartement en toute direction.
     let guard = 0;
-    while (placed.some(p => Math.hypot(p.x - x, p.y - y) < (p.r + r + 6)) && guard++ < 400) {
-      rad += r * 0.5;
-      x = rad * Math.cos(ang); y = rad * Math.sin(ang);
+    while (guard++ < 500 &&
+           placed.some(p => Math.hypot(p.x - x, p.y - y) < p.r + r + 5)) {
+      rad += r * 0.45;
+      x = rad * Math.cos(ang);
+      y = rad * Math.sin(ang);
     }
 
     placed.push({ x, y, r });
-    return { a, x, y, r, t, el:null, label:null };
+    return { a, x, y, r, t, el: null, label: null, mode: null, cover: null };
   });
 
-  const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y), rs = nodes.map(n => n.r);
+  const pad = 60;
   bounds = {
-    x0: Math.min(...xs.map((v,i)=>v-rs[i])) - 80,
-    y0: Math.min(...ys.map((v,i)=>v-rs[i])) - 80,
-    x1: Math.max(...xs.map((v,i)=>v+rs[i])) + 80,
-    y1: Math.max(...ys.map((v,i)=>v+rs[i])) + 80
+    x0: Math.min(...nodes.map(p => p.x - p.r)) - pad,
+    y0: Math.min(...nodes.map(p => p.y - p.r)) - pad,
+    x1: Math.max(...nodes.map(p => p.x + p.r)) + pad,
+    y1: Math.max(...nodes.map(p => p.y + p.r)) + pad
   };
 }
 
-/* --- 3. render ---------------------------------------------------------- */
+/* --- 5. render ---------------------------------------------------------- */
 
 function render(){
-  const years = [...new Set(ALBUMS.map(yearOf))].sort();
-
   const frag = document.createDocumentFragment();
-  nodes.forEach(n => {
+
+  nodes.forEach(node => {
     const d = document.createElement("div");
-    d.className = "album";
-    d.style.left   = n.x + "px";
-    d.style.top    = n.y + "px";
-    d.style.width  = d.style.height = (n.r * 2) + "px";
-    d.style.color  = ramp(n.t);
-    // La couverture n'est posee qu'au moment ou l'echelle la rend visible :
-    // douze cents images au chargement seraient un gachis.
-    if (n.a.p && n.a.s && n.a.c) n.coverUrl = photoUrl(n.a.s, n.a.p, n.a.c, "q");
-    d.title = `${n.a.t} — ${n.a.n} photos`;
-    d.onclick = e => { e.stopPropagation(); openAlbum(n); };
-    n.el = d;
+    d.className   = "album";
+    d.style.left  = node.x + "px";
+    d.style.top   = node.y + "px";
+    d.style.width = d.style.height = (node.r * 2) + "px";
+    d.style.color = ramp(node.t);
+    d.title = `${node.a.t} — ${node.a.n} photos`;
+    d.onclick = e => { e.stopPropagation(); enterAlbum(node); };
+    node.el = d;
+
+    if (node.a.p && node.a.s && node.a.c) {
+      node.cover = photoUrl(node.a.s, node.a.p, node.a.c, "q");
+    }
     frag.appendChild(d);
 
-    // Les libelles n'existent que pour les albums consequents : mille deux
-    // cents etiquettes seraient illisibles et couteuses a afficher.
-    // Un libelle par album serait illisible de loin ; on en montre de plus en
-    // plus a mesure qu'on approche (voir le seuil dans la boucle d'affichage).
-    if (n.a.n >= 25){
+    // Un libelle par album serait illisible ; le seuil s'abaisse avec le zoom.
+    if (node.a.n >= 25) {
       const l = document.createElement("div");
-      l.className = "label";
-      l.style.left = n.x + "px";
-      l.style.top  = (n.y + n.r + 6) + "px";
-      l.innerHTML = `${esc(n.a.t.slice(0,46))}<small>${n.a.d.slice(0,4)} · ${n.a.n} photos</small>`;
-      n.label = l;
+      l.className  = "label";
+      l.style.left = node.x + "px";
+      l.style.top  = (node.y + node.r + 6) + "px";
+      l.innerHTML  = `${esc(node.a.t.slice(0, 44))}` +
+                     `<small>${yearOf(node.a)} · ${node.a.n} photos</small>`;
+      node.label = l;
       frag.appendChild(l);
     }
   });
+
   world.appendChild(frag);
 
+  const years = [...new Set(ALBUMS.map(yearOf))].sort();
   document.getElementById("years").innerHTML = years.map((y, i) => {
-    const list = ALBUMS.filter(a => yearOf(a) === y);
-    const ph = list.reduce((s,a) => s + a.n, 0);
-    const c = ramp(i / Math.max(1, years.length - 1));
-    return `<span style="border-left-color:${c}"><b style="color:${c}">${y}</b>${ph.toLocaleString("en")}</span>`;
+    const ph = ALBUMS.filter(a => yearOf(a) === y).reduce((s, a) => s + a.n, 0);
+    const c  = ramp(i / Math.max(1, years.length - 1));
+    return `<span style="border-left-color:${c}">` +
+           `<b style="color:${c}">${y}</b>${ph.toLocaleString("en")}</span>`;
   }).join("");
 
-  const total = ALBUMS.reduce((s,a) => s + a.n, 0);
+  const total = ALBUMS.reduce((s, a) => s + a.n, 0);
   document.getElementById("sub").textContent =
-    `${ALBUMS.length.toLocaleString("en")} albums · ${total.toLocaleString("en")} photographs · ${years[0]}–${years[years.length-1]}`;
+    `${ALBUMS.length.toLocaleString("en")} albums · ` +
+    `${total.toLocaleString("en")} photographs · ` +
+    `${years[0]}–${years[years.length - 1]}`;
 }
 
-/* --- 4. view loop ------------------------------------------------------- */
+/* --- 6. view loop ------------------------------------------------------- */
 // On n'ecrit jamais la transformation directement : on approche la cible d'un
-// facteur constant par image. C'est ce qui donne l'inertie a la fin d'un
-// glissement et la glisse du zoom, sans bibliotheque d'animation.
+// facteur constant par image. De la viennent l'inertie et la glisse, sans
+// bibliotheque d'animation.
 
 function tick(){
   const e = 0.18;
@@ -176,101 +195,197 @@ function tick(){
   view.y += (target.y - view.y) * e;
   view.k += (target.k - view.k) * e;
 
-  world.style.transform = `translate(${view.x.toFixed(2)}px, ${view.y.toFixed(2)}px) scale(${view.k.toFixed(4)})`;
+  world.style.transform =
+    `translate(${view.x.toFixed(2)}px, ${view.y.toFixed(2)}px) scale(${view.k.toFixed(4)})`;
 
   updateDetail();
 
-  // Les libelles apparaissent quand l'echelle les rend lisibles, et se
-  // contre-echellent pour garder une taille constante a l'ecran.
-  // Plus on approche, plus les petits albums donnent leur nom.
-  const k = view.k;
-  const floor = k > 1.6 ? 0 : k > 0.95 ? 60 : k > 0.5 ? 140 : Infinity;
-  nodes.forEach(n => {
-    if (!n.label) return;
-    const show = n.a.n >= floor;
-    if (show !== n.label.classList.contains("show")) n.label.classList.toggle("show", show);
-    if (show) n.label.style.transform = `translate(-50%,0) scale(${(1/k).toFixed(3)})`;
-  });
-
-  const moving = Math.abs(target.x-view.x) > .3 || Math.abs(target.y-view.y) > .3 ||
-                 Math.abs(target.k-view.k) > .0008;
+  const moving = Math.abs(target.x - view.x) > 0.3 ||
+                 Math.abs(target.y - view.y) > 0.3 ||
+                 Math.abs(target.k - view.k) > 0.0008;
   raf = moving ? requestAnimationFrame(tick) : null;
 }
+
 function kick(){ if (!raf) raf = requestAnimationFrame(tick); }
 
-/* --- deplacement et echelle ---------------------------------------------
-   Le zoom garde immobile le point sous le curseur : c'est ce qui evite de se
-   perdre. Les bornes empechent de sortir de l'echelle utile.
-------------------------------------------------------------------------- */
-
 function zoomAt(px, py, factor){
-  const k = Math.max(0.05, Math.min(8, target.k * factor));
+  const k = Math.max(K_MIN, Math.min(K_MAX, target.k * factor));
+  // Le point sous le curseur reste immobile : c'est ce qui evite de se perdre.
   target.x = px - (px - target.x) * (k / target.k);
   target.y = py - (py - target.y) * (k / target.k);
   target.k = k;
   kick();
 }
 
-function fitView(pad = 90){
-  const w = innerWidth, h = innerHeight;
+function centreOn(x, y, k){
+  target.k = k;
+  target.x = innerWidth  / 2 - x * k;
+  target.y = innerHeight / 2 - y * k;
+  kick();
+}
+
+function showWholeGalaxy(pad = 70){
   const bw = bounds.x1 - bounds.x0, bh = bounds.y1 - bounds.y0;
-  const k = Math.min((w - pad * 2) / bw, (h - pad * 2) / bh);
-  target.k = k;
-  target.x = w / 2 - (bounds.x0 + bw / 2) * k;
-  target.y = h / 2 - (bounds.y0 + bh / 2) * k;
-  kick();
+  const k = Math.max(K_MIN,
+    Math.min((innerWidth - pad * 2) / bw, (innerHeight - pad * 2) / bh));
+  centreOn(bounds.x0 + bw / 2, bounds.y0 + bh / 2, k);
 }
 
-function focusNode(n, k = 1.6){
-  target.k = k;
-  target.x = innerWidth  / 2 - n.x * k;
-  target.y = innerHeight / 2 - n.y * k;
-  kick();
-}
-
-
-
-/* --- niveaux de detail ---------------------------------------------------
-   Trois etats selon l'echelle :
-     < 0.55  pastille coloree
-     < 1.60  couverture de l'album
-     >= 1.60 les photos de l'album, chargees a la demande
-
-   Seuls les albums reellement visibles sont traites : sans ce filtrage, le
-   troisieme niveau demanderait douze cents appels d'API.
-------------------------------------------------------------------------- */
+/* --- 7. level of detail ------------------------------------------------- */
+// Seuls les albums reellement a l'ecran sont traites. Sans ce filtrage, poser
+// mille deux cents couvertures couterait une seconde a chaque image.
 
 let detailPass = 0;
+
 function updateDetail(){
-  if (++detailPass % 4) return;            // une image sur quatre suffit
+  if (++detailPass % 4) return;
 
-  const k = view.k, pad = 240;
-  nodes.forEach(n => {
-    const sx = n.x * k + view.x, sy = n.y * k + view.y;
-    const on = sx > -pad && sx < innerWidth + pad && sy > -pad && sy < innerHeight + pad;
+  const k = view.k, pad = 260;
 
-    const want = (on && k >= 0.5 && n.coverUrl) ? "cover" : "dot";
-    if (want === n.mode) return;
+  nodes.forEach(node => {
+    const sx = node.x * k + view.x;
+    const sy = node.y * k + view.y;
+    const onScreen = sx > -pad && sx < innerWidth + pad &&
+                     sy > -pad && sy < innerHeight + pad;
 
-    if (want === "cover"){
-      n.el.style.backgroundImage = `url(${n.coverUrl})`;
-      n.el.classList.add("cover");
-    } else {
-      n.el.style.backgroundImage = "";
-      n.el.classList.remove("cover");
+    const want = (onScreen && k >= K_COVER && node.cover) ? "cover" : "dot";
+    if (want !== node.mode) {
+      if (want === "cover") {
+        node.el.style.backgroundImage = `url(${node.cover})`;
+        node.el.classList.add("cover");
+      } else {
+        node.el.style.backgroundImage = "";
+        node.el.classList.remove("cover");
+      }
+      node.mode = want;
     }
-    n.mode = want;
+
+    if (!node.label) return;
+    const floor = k > 1.5 ? 0 : k > 0.95 ? 60 : k > 0.55 ? 150 : Infinity;
+    const show  = onScreen && node.a.n >= floor;
+    if (show !== node.label.classList.contains("show")) {
+      node.label.classList.toggle("show", show);
+    }
+    if (show) {
+      node.label.style.transform = `translate(-50%,0) scale(${(1 / k).toFixed(3)})`;
+    }
   });
 }
 
-/* --- vue album ------------------------------------------------------------
-   Au clic, on entre dans l'album : le champ disparait, les photos s'etalent en
-   grille. Une couronne de vignettes dans l'espace se chevauchait des que deux
-   albums etaient voisins, et rien n'etait cliquable proprement.
-------------------------------------------------------------------------- */
+/* --- 8. input: mouse, wheel, touch, keyboard ---------------------------- */
+
+let hintTimer = null;
+
+function hideHint(){
+  const h = document.getElementById("hint");
+  if (!h || h.classList.contains("gone")) return;
+  clearTimeout(hintTimer);
+  hintTimer = setTimeout(() => h.classList.add("gone"), 800);
+}
+
+function installInput(){
+  let drag = null, vx = 0, vy = 0, lastT = 0, lastX = 0, lastY = 0;
+
+  stage.addEventListener("wheel", e => {
+    e.preventDefault();
+    hideHint();
+    zoomAt(e.clientX, e.clientY, Math.exp(-e.deltaY * 0.0016));
+  }, { passive: false });
+
+  stage.addEventListener("pointerdown", e => {
+    if (e.target.closest(".album")) return;
+    drag  = { px: e.clientX, py: e.clientY, tx: target.x, ty: target.y };
+    lastX = e.clientX; lastY = e.clientY; lastT = performance.now();
+    vx = vy = 0;
+    stage.setPointerCapture(e.pointerId);
+    stage.classList.add("dragging");
+    hideHint();
+  });
+
+  stage.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const now = performance.now(), dt = Math.max(1, now - lastT);
+    vx = (e.clientX - lastX) / dt;
+    vy = (e.clientY - lastY) / dt;
+    lastX = e.clientX; lastY = e.clientY; lastT = now;
+
+    target.x = drag.tx + (e.clientX - drag.px);
+    target.y = drag.ty + (e.clientY - drag.py);
+    view.x = target.x; view.y = target.y;      // pas de retard pendant le geste
+    kick();
+  });
+
+  const release = () => {
+    if (!drag) return;
+    drag = null;
+    stage.classList.remove("dragging");
+    // Inertie : on prolonge le geste, la boucle amortit.
+    target.x += Math.max(-700, Math.min(700, vx * 150));
+    target.y += Math.max(-700, Math.min(700, vy * 150));
+    kick();
+  };
+  ["pointerup", "pointercancel", "pointerleave"]
+    .forEach(t => stage.addEventListener(t, release));
+
+  // Pincement a deux doigts.
+  let pinch = null;
+  stage.addEventListener("touchstart", e => {
+    if (e.touches.length !== 2) return;
+    drag = null;
+    const [a, b] = e.touches;
+    pinch = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY) };
+  }, { passive: true });
+
+  stage.addEventListener("touchmove", e => {
+    if (e.touches.length !== 2 || !pinch) return;
+    e.preventDefault();
+    const [a, b] = e.touches;
+    const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+    zoomAt((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2, pinch.d / d);
+    pinch.d = d;
+  }, { passive: false });
+
+  stage.addEventListener("touchend", () => { pinch = null; }, { passive: true });
+
+  stage.addEventListener("dblclick", e => zoomAt(e.clientX, e.clientY, 2));
+
+  addEventListener("keydown", e => {
+    if (!document.getElementById("light").hidden) {
+      if (e.key === "Escape")     closeLight();
+      if (e.key === "ArrowRight") stepLight(1);
+      if (e.key === "ArrowLeft")  stepLight(-1);
+      return;
+    }
+    if (!document.getElementById("album").hidden) {
+      if (e.key === "Escape") leaveAlbum();
+      return;
+    }
+    if (e.key === "+" || e.key === "=") zoomAt(innerWidth / 2, innerHeight / 2, 1.5);
+    if (e.key === "-")                  zoomAt(innerWidth / 2, innerHeight / 2, 1 / 1.5);
+    if (e.key === "0")                  showWholeGalaxy();
+    const step = 150;
+    if (e.key === "ArrowLeft")  { target.x += step; kick(); }
+    if (e.key === "ArrowRight") { target.x -= step; kick(); }
+    if (e.key === "ArrowUp")    { target.y += step; kick(); }
+    if (e.key === "ArrowDown")  { target.y -= step; kick(); }
+  });
+
+  document.getElementById("zoomIn").onclick  =
+    () => zoomAt(innerWidth / 2, innerHeight / 2, 1.6);
+  document.getElementById("zoomOut").onclick =
+    () => zoomAt(innerWidth / 2, innerHeight / 2, 1 / 1.6);
+  document.getElementById("showAll").onclick = () => showWholeGalaxy();
+
+  addEventListener("resize", () => kick());
+}
+
+/* --- 9. album view ------------------------------------------------------ */
+// On entre dans l'album : le champ s'efface, les photos respirent. Une
+// couronne de vignettes dans l'espace se chevauchait des que deux albums
+// etaient voisins, et rien n'etait cliquable proprement.
 
 const photoCache = new Map();
-let current = { list: [], index: 0, node: null };
+let current = { list: [], index: 0 };
 
 async function fetchPhotos(albumId){
   if (photoCache.has(albumId)) return photoCache.get(albumId);
@@ -281,49 +396,52 @@ async function fetchPhotos(albumId){
     const r = await fetch(u);
     const j = await r.json();
     const list = (j.photoset && j.photoset.photo) ? j.photoset.photo : [];
+    if (!list.length && j.stat === "fail") notice("Flickr: " + (j.message || "request refused"));
     photoCache.set(albumId, list);
     return list;
-  } catch (e) {
-    notice("Flickr API unreachable — check the key in index.html.", "warn");
+  } catch (err) {
+    notice("Flickr API unreachable — check the key in index.html.");
     photoCache.set(albumId, []);
     return [];
   }
 }
 
-async function enterAlbum(n){
+async function enterAlbum(node){
   const box = document.getElementById("album");
-  document.getElementById("aTitle").textContent = n.a.t;
+  document.getElementById("aTitle").textContent = node.a.t;
   document.getElementById("aMeta").textContent =
-    `${n.a.n.toLocaleString("en")} photographs · ${new Date(n.a.d).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}`;
+    `${node.a.n.toLocaleString("en")} photographs · ` +
+    new Date(node.a.d).toLocaleDateString("en-GB",
+      { day: "numeric", month: "long", year: "numeric" });
   document.getElementById("aFlickr").href =
-    `https://www.flickr.com/photos/cor-photos/albums/${n.a.i}`;
+    `https://www.flickr.com/photos/cor-photos/albums/${node.a.i}`;
   document.getElementById("grid").innerHTML = "";
   document.getElementById("aMore").hidden = true;
   box.hidden = false;
   box.scrollTop = 0;
+  hideHint();
 
-  const list = await fetchPhotos(n.a.i);
-  if (box.hidden) return;                    // l'utilisateur est deja ressorti
-  current = { list, index: 0, node: n };
+  const list = await fetchPhotos(node.a.i);
+  if (box.hidden) return;                       // deja ressorti
+  current = { list, index: 0 };
 
-  const grid = document.getElementById("grid");
   const frag = document.createDocumentFragment();
   list.forEach((p, i) => {
     const img = document.createElement("img");
-    img.loading = "lazy";
+    img.loading  = "lazy";
     img.decoding = "async";
-    img.src = photoUrl(p.server, p.id, p.secret, "n");   // 320 px
+    img.src = photoUrl(p.server, p.id, p.secret, "n");
     img.alt = p.title || "";
     img.title = p.title || "";
-    img.setAttribute("role", "listitem");
     img.onclick = () => openLight(i);
     frag.appendChild(img);
   });
-  grid.appendChild(frag);
+  document.getElementById("grid").appendChild(frag);
 
-  if (n.a.n > list.length){
+  if (node.a.n > list.length) {
     const more = document.getElementById("aMore");
-    more.textContent = `Showing the first ${list.length} of ${n.a.n} photographs — the rest are on Flickr.`;
+    more.textContent =
+      `Showing the first ${list.length} of ${node.a.n} photographs — the rest are on Flickr.`;
     more.hidden = false;
   }
 }
@@ -333,188 +451,49 @@ function leaveAlbum(){
   document.getElementById("grid").innerHTML = "";
 }
 
-/* --- photo en grand ----------------------------------------------------- */
+/* --- 10. lightbox ------------------------------------------------------- */
 
 function openLight(i){
   if (!current.list.length) return;
   current.index = (i + current.list.length) % current.list.length;
   const p = current.list[current.index];
-  document.getElementById("lImg").src = photoUrl(p.server, p.id, p.secret, "b"); // 1024 px
-  document.getElementById("lImg").alt = p.title || "";
-  document.getElementById("lCap").textContent =
+  const img = document.getElementById("lightImg");
+  img.src = photoUrl(p.server, p.id, p.secret, "b");
+  img.alt = p.title || "";
+  document.getElementById("lightCap").textContent =
     `${p.title || "Untitled"} · ${current.index + 1} of ${current.list.length}`;
   document.getElementById("light").hidden = false;
 }
+
 function closeLight(){ document.getElementById("light").hidden = true; }
 function stepLight(d){ openLight(current.index + d); }
 
-/* --- 5. input: mouse, wheel, touch, keyboard ---------------------------- */
-
-function installInput(){
-  let drag = null, moved = false, vx = 0, vy = 0, lastT = 0;
-
-  stage.addEventListener("wheel", e => {
-    e.preventDefault();
-    hideHint();
-    // Molette classique et pave tactile : on lisse l'amplitude pour eviter
-    // les sauts d'un cran a l'autre.
-    const f = Math.exp(-e.deltaY * 0.0016);
-    zoomAt(e.clientX, e.clientY, f);
-  }, { passive:false });
-
-  stage.addEventListener("pointerdown", e => {
-    if (e.target.closest(".album")) return;
-    drag = { px:e.clientX, py:e.clientY, tx:target.x, ty:target.y };
-    moved = false; vx = vy = 0; lastT = performance.now();
-    stage.setPointerCapture(e.pointerId);
-    stage.classList.add("dragging");
-    hideHint();
-  });
-
-  stage.addEventListener("pointermove", e => {
-    if (!drag) return;
-    const dx = e.clientX - drag.px, dy = e.clientY - drag.py;
-    if (Math.abs(dx) + Math.abs(dy) > 4) moved = true;
-    const now = performance.now(), dt = Math.max(1, now - lastT);
-    vx = (e.clientX - (drag.px + (target.x - drag.tx))) / dt;
-    vy = (e.clientY - (drag.py + (target.y - drag.ty))) / dt;
-    lastT = now;
-    target.x = drag.tx + dx;
-    target.y = drag.ty + dy;
-    view.x = target.x; view.y = target.y;    // pendant le glissement, pas de retard
-    kick();
-  });
-
-  const release = () => {
-    if (!drag) return;
-    drag = null;
-    stage.classList.remove("dragging");
-    // Inertie : on prolonge le geste puis on laisse la boucle amortir.
-    target.x += Math.max(-600, Math.min(600, vx * 140));
-    target.y += Math.max(-600, Math.min(600, vy * 140));
-    kick();
-  };
-  ["pointerup","pointercancel","pointerleave"].forEach(t => stage.addEventListener(t, release));
-
-  // Pincement a deux doigts.
-  let pinch = null;
-  stage.addEventListener("touchstart", e => {
-    if (e.touches.length !== 2) return;
-    drag = null;
-    const [a,b] = e.touches;
-    pinch = { d: Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY) };
-  }, { passive:true });
-  stage.addEventListener("touchmove", e => {
-    if (e.touches.length !== 2 || !pinch) return;
-    e.preventDefault();
-    const [a,b] = e.touches;
-    const d = Math.hypot(a.clientX-b.clientX, a.clientY-b.clientY);
-    zoomAt((a.clientX+b.clientX)/2, (a.clientY+b.clientY)/2, d / pinch.d);
-    pinch.d = d;
-  }, { passive:false });
-  stage.addEventListener("touchend", () => { pinch = null; }, { passive:true });
-
-  // Double-clic et double-tap : plonger.
-  stage.addEventListener("dblclick", e => zoomAt(e.clientX, e.clientY, 2));
-  let lastTap = 0;
-  stage.addEventListener("pointerup", e => {
-    if (e.pointerType !== "touch" || moved) return;
-    const now = performance.now();
-    if (now - lastTap < 320) zoomAt(e.clientX, e.clientY, 2);
-    lastTap = now;
-  });
-
-  addEventListener("keydown", e => {
-    const lightOpen = !document.getElementById("light").hidden;
-    const albumOpen = !document.getElementById("album").hidden;
-    if (lightOpen){
-      if (e.key === "Escape")     { closeLight(); return; }
-      if (e.key === "ArrowRight") { stepLight(1);  return; }
-      if (e.key === "ArrowLeft")  { stepLight(-1); return; }
-      return;
-    }
-    if (albumOpen){
-      if (e.key === "Escape") { leaveAlbum(); closePanel(); }
-      return;
-    }
-    if (e.key === "Escape") closePanel();
-    if (e.key === "+" || e.key === "=") zoomAt(innerWidth/2, innerHeight/2, 1.5);
-    if (e.key === "-") zoomAt(innerWidth/2, innerHeight/2, 1/1.5);
-    if (e.key === "0") fitView();
-    const step = 140;
-    if (e.key === "ArrowLeft")  { target.x += step; kick(); }
-    if (e.key === "ArrowRight") { target.x -= step; kick(); }
-    if (e.key === "ArrowUp")    { target.y += step; kick(); }
-    if (e.key === "ArrowDown")  { target.y -= step; kick(); }
-  });
-
-  document.getElementById("zIn").onclick  = () => zoomAt(innerWidth/2, innerHeight/2, 1.6);
-  document.getElementById("zOut").onclick = () => zoomAt(innerWidth/2, innerHeight/2, 1/1.6);
-  document.getElementById("fit").onclick  = () => { closePanel(); fitView(); };
-  addEventListener("resize", () => fitView());
-}
-
-let hintTimer = null;
-function hideHint(){
-  const h = document.getElementById("hint");
-  if (!h || h.classList.contains("gone")) return;
-  clearTimeout(hintTimer);
-  hintTimer = setTimeout(() => h.classList.add("gone"), 900);
-}
-
-/* --- 6. panel ----------------------------------------------------------- */
-
-function openAlbum(n){
-  if (selected) selected.el.classList.remove("on");
-  selected = n;
-  n.el.classList.add("on");
-  enterAlbum(n);
-
-  document.getElementById("pTitle").textContent = n.a.t;
-  document.getElementById("pMeta").textContent =
-    `${n.a.n.toLocaleString("en")} photographs · created ${new Date(n.a.d).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}`;
-  document.getElementById("pOpen").href =
-    `https://www.flickr.com/photos/cor-photos/albums/${n.a.i}`;
-  focusNode(n, Math.max(target.k, 1.2));
-  hideHint();
-}
-
-function closePanel(){
-  document.getElementById("panel").classList.remove("open");
-  if (selected) { selected.el.classList.remove("on"); selected = null; }
-}
-document.getElementById("close").onclick = closePanel;
-document.getElementById("back").onclick    = () => { leaveAlbum(); closePanel(); };
-document.getElementById("lClose").onclick  = closeLight;
-document.getElementById("lPrev").onclick   = () => stepLight(-1);
-document.getElementById("lNext").onclick   = () => stepLight(1);
-document.getElementById("light").onclick   = e => { if (e.target.id === "light") closeLight(); };
-
-/* --- 7. boot ------------------------------------------------------------ */
-
-function notice(text, tone){
-  const el = document.getElementById("notice");
-  if (!el) return;
-  el.textContent = text;
-  el.className = tone || "";
-  el.hidden = false;
-}
+/* --- 11. boot ----------------------------------------------------------- */
 
 (function(){
-  if (!ALBUMS.length){
+  if (!ALBUMS.length) {
     document.getElementById("sub").textContent = "No album data loaded.";
     return;
   }
-
-  // Un echec silencieux est un defaut : on dit ce qui manque.
-  if (!FLICKR_KEY || FLICKR_KEY === "METTRE_LA_CLE_ICI"){
-    notice("No Flickr key set in index.html — covers and photographs will not load.", "warn");
-  } else if (!ALBUMS.some(a => a.p && a.s && a.c)){
-    notice("Album data has no cover fields (p, s, c) — re-export to see the covers. Photographs still load on zoom.", "warn");
+  if (!FLICKR_KEY || FLICKR_KEY === "METTRE_LA_CLE_ICI") {
+    notice("No Flickr key set in index.html — covers and photographs will not load.");
+  } else if (!ALBUMS.some(a => a.p && a.s && a.c)) {
+    notice("Album data has no cover fields (p, s, c) — re-export to see the covers.");
   }
+
   layout();
   render();
   installInput();
-  fitView();
-  setTimeout(() => hideHint(), 6000);
+
+  document.getElementById("back").onclick       = leaveAlbum;
+  document.getElementById("lightClose").onclick = closeLight;
+  document.getElementById("lightPrev").onclick  = () => stepLight(-1);
+  document.getElementById("lightNext").onclick  = () => stepLight(1);
+  document.getElementById("light").onclick      =
+    e => { if (e.target.id === "light") closeLight(); };
+
+  // On ouvre sur le coeur de la galaxie a une echelle lisible, plutot que sur
+  // l'ensemble : mille deux cents disques vus de tres loin ne sont qu'une brume.
+  centreOn(0, 0, K_START);
+  setTimeout(hideHint, 6000);
 })();
