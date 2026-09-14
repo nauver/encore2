@@ -322,7 +322,10 @@ function updateDetail(view){
 
 const LABEL_H    = 30;
 const LABEL_MAX  = 22;
-const LABEL_MIN_R = 26;   // rayon a l'ecran, en pixels
+// Rayon a l'ecran, en pixels, a partir duquel un album donne son nom. Le plus
+// gros album du fonds fait 80 px de rayon dans le monde : a 55, il faut avoir
+// zoome pour que son titre paraisse. De loin, la galaxie reste une forme.
+const LABEL_MIN_R = 55;
 
 function placeLabels(k){
   // Un titre n'apparait que lorsque son album est assez gros a l'ecran, c'est
@@ -516,7 +519,10 @@ function active(){
     document.getElementById("pworld"),
     { kMin: 0.12, kMax: 6,
       onZoomOutPast: {
-        threshold: () => albumField.fitScale() * 0.82,
+        // Le moindre recul depuis le cadrage d'ouverture ressort : c'est le
+        // geste attendu, et un seuil plus bas donnait l'impression que rien
+        // ne se passait pendant plusieurs crans de molette.
+        threshold: () => albumField.fitScale() * 0.98,
         action:    () => leaveAlbum()
       } }
   );
