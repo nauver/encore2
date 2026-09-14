@@ -12,6 +12,9 @@
   --ink:#F4F7FB; --soft:#93A3B8; --bg:#070B12; --panel:#121A26; --rule:#243244;
 }
 *{box-sizing:border-box}
+/* Une regle d'identifiant l'emporte sur la feuille du navigateur : sans ceci,
+   un #light{display:flex} rend l'element visible malgre son attribut hidden. */
+[hidden]{display:none!important}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg)}
 body{color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;
   -webkit-font-smoothing:antialiased;overscroll-behavior:none}
