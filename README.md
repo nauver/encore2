@@ -1,104 +1,131 @@
-# enCoR — timestamped quotes from EuroPCom
+# CoRstellation
 
-A proof of concept: pull a handful of striking quotes out of each EuroPCom
-session, attribute them to the right speaker, and link each one to the exact
-second of the video on the CoR webstreaming portal.
+Fifteen years of European Committee of the Regions photography, as one field you
+can move through.
 
-Open `index.html`. Nothing to install, nothing to build — it works both on
-GitHub Pages and by double-clicking the file on your own machine.
+1,237 albums · 104,515 photographs · 2011 to 2026.
 
-## Why this exists
+Open `index.html`. Nothing to install, nothing to build — it works on GitHub
+Pages and by opening the file from disk.
 
-The portal already publishes the video and its transcript, with full-text
-search. What it does not do is tell you **who** said what, or surface the
-passages worth quoting. That is the gap this fills.
+## What you are looking at
 
-## Two pages
+Albums are laid out along a spiral of time: 2011 at the centre, 2026 at the
+edge. Each disc is one album, sized by how many photographs it holds and
+coloured by year.
 
-`index.html` is the public view: read the quotes, filter by speaker, click through to
-the exact moment in the video. Nothing to fill in.
+The shape tells a story on its own. Activity climbs steadily to 2019, collapses
+in 2020 and 2021 — no meetings, no photographs — then returns and overtakes
+what came before. 2025 is the densest year on record, with 183 albums and
+16,657 photographs.
 
-`admin.html` is the editing view. It loads the same datasets and lets you play each
-quote in a large embedded player, correct the timing, fix the wording, complete the
-speaker name, add or refine the English translation, and mark the quote as validated.
-Validated quotes rise to the top of the list.
+Click any album to open it on Flickr.
 
-When you are done, **Download data file** exports a `data/<id>.js` containing only the
-validated quotes, with the corrected timings. Replace the file in `data/` and the
-public page reflects your work. Exporting is the validation — nothing is saved
-automatically, so export before closing the tab.
+## Three levels of detail
 
-If every quote in a session is off by the same amount, correct **startUTC** or use
-**global shift** rather than nudging each quote.
+Zooming does not only make things bigger — it changes what is shown.
 
-## How it is built
+| Scale | What you see |
+| --- | --- |
+| far out | a coloured disc per album, sized by its number of photographs |
+| closer | the album cover |
+| close in | the photographs themselves, in a ring around the album |
 
-1. The media is downloaded from the Streamovations API, **original floor
-   track** (`or`) — never an interpreted track, see below.
-2. cScribe produces the SRT.
-3. Timecodes from the SRT plus the session programme give the speaker
-   attribution.
-4. Candidate quotes are extracted, then reviewed by a human.
-5. `seek_epoch = startUTC + start_sec - 3` builds the portal link. The
-   three-second margin stops the video landing after the first word.
+The photographs are fetched from the Flickr API only for albums actually on
+screen, and only once you are close enough to look at them. Nothing is
+preloaded: 104,515 thumbnails would be several megabytes for images nobody
+would ever scroll past. Clicking a photograph opens it on Flickr.
 
-`startUTC` is read from the Transcription panel on the portal: the clock time of
-the first line shown, minus the timecode of the first subtitle. It cannot be
-derived from the scheduled start — on the 2026 opening, the stream begins
-3 min 41 s after the announced time.
+## Moving around
 
-## Adding a session
+| | |
+| --- | --- |
+| Mouse | drag to move, scroll to zoom, double-click to dive in |
+| Touch | one finger to move, two to pinch, double-tap to dive in |
+| Keyboard | `+` `−` to zoom, arrows to move, `0` to fit, `Esc` to close |
 
-Drop `data/<id>.js` next to the existing one, then list its id in
-`data/index.js`. That is all — a tab appears.
+Zooming keeps the point under the cursor still, which is what stops you getting
+lost. Releasing a drag carries a little momentum. Labels appear once the scale
+makes them legible, and only for the larger albums — twelve hundred captions at
+once would be unreadable.
 
-```js
-registerSession({
-  id: "europcom-2025-opening",
-  title: "EuroPCom 2025 — Opening session",
-  date: "2025-07-03",
-  durationSec: 3573,
-  reference: "europcom-2025-opening-session",
-  startUTC: 0,                       // read from the portal
-  track: "or",
-  portalUrl: "https://webstreaming.cor.europa.eu/en/cor/...",
-  quotes: [
-    { id: "q001", speaker: "…", role: "…", theme: "…",
-      start_sec: 986, timecode: "00:16:26",
-      quote: "…", seek_url: "https://webstreaming.cor.europa.eu/en/cor/.../seek/…" }
-  ]
-});
+Built for a wall display as much as for a laptop: large hit areas, no
+hover-only affordance, nothing that needs a mouse.
+
+## Structure
+
+```
+corstellation/
+├─ index.html
+├─ assets/
+│  ├─ corstellation.css
+│  └─ corstellation.js
+└─ data/
+   └─ albums.js        the album list, exported from the Flickr API
 ```
 
-## Before publishing any quote
+No build step, no framework, no runtime dependency. All behaviour and
+presentation sit in external files, so the page can be served under a strict
+Content-Security-Policy without `unsafe-inline`.
 
-**The track matters.** On an interpreted session the transcript carries the
-interpreter's words, not the speaker's. Publishing that in quotation marks under
-an elected official's name is a real editorial risk. Only the floor track
-supports verbatim — and within one session some speakers use the floor language
-while others do not, so this is a per-speaker call, not a per-session one.
+The whole scene is a single transformed layer, so panning and zooming are
+composited by the GPU rather than re-laid out on every frame. The view is
+animated towards a target rather than set directly — that is what gives the
+glide, and what makes it usable on a large screen where abrupt jumps read as
+faults.
 
-**Transcripts contain errors.** Proper nouns are often mangled, and French is
-transcribed noticeably worse than English. A French quote must be checked
-against the audio before publication.
+## Refreshing the data
 
-**Watch for quoted material.** A speaker paraphrasing Thucydides should not be
-credited with the line. Those passages are dropped at review.
+The album list comes from the Flickr API, using the Committee's own application
+key. In PowerShell:
 
-**The floor is not included.** Speakers listed in the programme are public
-figures speaking in that capacity; someone asking a question from the audience
-is not. Only the former appear here.
+```powershell
+$key  = "<api key>"
+$nsid = "62673028@N02"          # flickr.com/photos/cor-photos
 
-**Transcription gaps.** More than twenty seconds between two subtitles signals a
-missing passage. Quotes on either side of a gap may be truncated with nothing to
-show for it.
+$all = @()
+$first = Invoke-RestMethod "https://api.flickr.com/services/rest/?method=flickr.photosets.getList&api_key=$key&user_id=$nsid&per_page=500&format=json&nojsoncallback=1"
+foreach ($p in 1..$first.photosets.pages) {
+  $u = "https://api.flickr.com/services/rest/?method=flickr.photosets.getList&api_key=$key&user_id=$nsid&per_page=500&page=$p&format=json&nojsoncallback=1"
+  $all += (Invoke-RestMethod $u).photosets.photoset
+}
 
-## Status
+$rows = $all | ForEach-Object {
+  [pscustomobject]@{
+    i = $_.id
+    t = $_.title._content
+    n = [int]$_.photos
+    d = (Get-Date '1970-01-01').AddSeconds([int]$_.date_create).ToString('yyyy-MM-dd')
+    p = $_.primary          # identifiant de la photo de couverture
+    s = $_.server           # serveur d'images
+    c = $_.secret           # jeton de l'URL
+  }
+} | Sort-Object d
 
-Proof of concept, not a product. The candidate quotes were selected on formal
-criteria — self-contained sentence, complete idea, no reference to what came
-before. Nobody has yet checked that they match what a communicator would
-actually have picked. That is what the review is for.
+"window.CORSTELLATION_ALBUMS = " + ($rows | ConvertTo-Json -Compress) + ";" |
+  Set-Content data\albums.js -Encoding UTF8
+```
 
-Keep this repository **private**. It holds speaker names, words attributed to
-them, and links to CoR sessions.
+The `p`, `s` and `c` fields are what album covers are built from:
+`https://live.staticflickr.com/{s}/{p}_{c}_q.jpg`. Without them the page still
+works, but stays at coloured discs.
+
+Read access only. The page never writes to Flickr and stores no images: it keeps
+album identifiers and titles, and links back to Flickr for everything else.
+
+## The API key
+
+`index.html` carries the Committee's Flickr application key in a one-line
+script. That key identifies the application and grants no write access — any
+page calling the API from a browser exposes its own. The application *secret*
+never appears here and is not needed for reading public photos.
+
+## What is not here yet
+
+**A search.** Twelve hundred album titles are a corpus of their own — "president
+meets", "plenary session", "COTER commission". A filter would make the field
+answerable rather than only browsable.
+
+**A link to enCoR.** The quote database covers the same events from the spoken
+side. Connecting the two would let a session be illustrated by the photographs
+taken at it.
