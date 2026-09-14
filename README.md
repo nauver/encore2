@@ -29,10 +29,12 @@ extent.
 | --- | --- |
 | far out | a coloured disc per album |
 | closer | the album cover |
-| inside | click an album: its photographs, in a grid |
+| inside | click an album: its photographs, as a field of their own |
 
-Clicking a photograph opens it large, with arrow keys to move through the album
-and `Esc` to come back.
+Inside an album the photographs are laid out and navigated exactly like the
+galaxy — same drag, same zoom, same momentum. Entering an album changes the
+contents, not the interface. Clicking a photograph opens it large, with arrow
+keys to move through the album and `Esc` to come back.
 
 Photographs are fetched from the Flickr API only when an album is opened, and
 covers only for albums actually on screen. Nothing is preloaded: 104,515
@@ -47,8 +49,13 @@ thumbnails would be megabytes of images nobody would ever scroll past.
 | Keyboard | `+` `−` zoom, arrows move, `0` shows everything, `Esc` closes |
 
 Zooming keeps the point under the cursor still, which is what stops you getting
-lost. Releasing a drag carries a little momentum. Labels appear as you approach:
-the large albums first, then the smaller ones, then all of them.
+lost. Releasing a drag carries a little momentum.
+
+Titles are chosen rather than merely thresholded. On every pass the albums on
+screen are ranked by size, and a title is kept only if it does not overlap one
+already placed. The number shown therefore adjusts itself to the density of the
+moment: a crowded area gives its few largest names, an empty one names
+everything in it.
 
 Built for a wall display as much as for a laptop: large hit areas, no
 hover-only affordance, nothing that needs a mouse.
