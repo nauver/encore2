@@ -235,7 +235,7 @@ function layoutGalaxy(){
       x = rad * Math.cos(ang); y = rad * Math.sin(ang);
     }
     placed.push({ x, y, r });
-    return { a, x, y, r, t, el: null, label: null, labelW: 0,
+    return { a, x, y, r, t, el: null,
              mode: null, cover: null, onScreen: false, sx: 0, sy: 0 };
   });
 
@@ -265,20 +265,13 @@ function renderGalaxy(){
     d.style.color  = ramp(node.t);
     d.title = `${node.a.t} — ${node.a.n} photos`;
     d.__node = node;
+    d.onpointerenter = () => showTip(node);
+    d.onpointerleave = () => hideTip();
     node.el = d;
     if (node.a.p && node.a.s && node.a.c) {
       node.cover = photoUrl(node.a.s, node.a.p, node.a.c, "q");
     }
     frag.appendChild(d);
-
-    const l = document.createElement("div");
-    l.className  = "label";
-    l.style.left = node.x + "px";
-    l.innerHTML  = `${esc(node.a.t.slice(0, 44))}` +
-                   `<small>${yearOf(node.a)} · ${node.a.n} photos</small>`;
-    node.label  = l;
-    node.labelW = Math.min(44, node.a.t.length) * 6.6 + 12;   // largeur estimee
-    frag.appendChild(l);
   });
 
   world.appendChild(frag);
@@ -330,7 +323,7 @@ function updateDetail(view){
     }
   });
 
-  placeLabels(k);
+  moveTip();
   maybeEnter(k);
 }
 
@@ -353,57 +346,35 @@ function maybeEnter(k){
   if (best) { enterLock = performance.now() + 1200; enterAlbum(best); }
 }
 
-/* --- 7. labels ---------------------------------------------------------- */
-// Tout afficher les rend illisibles ; en afficher un nombre fixe les laisse se
-// chevaucher. On procede donc par priorite : les albums les plus fournis
-// d'abord, et chaque titre n'est retenu que s'il ne recouvre aucun de ceux
-// deja places. Le calcul se fait en coordonnees ecran, et le nombre affiche
-// s'ajuste de lui-meme a la densite du moment.
+/* --- 7. label ------------------------------------------------------------
+   Un seul libelle, celui de l'album survole, pose hors du calque transforme :
+   il garde donc sa taille quelle que soit l'echelle, sans contre-mise a
+   l'echelle a chaque image. Afficher mille deux cents titres demandait un
+   calcul de chevauchement a chaque passe et restait brouillon ; ne montrer que
+   ce que l'on designe est plus lisible et bien moins couteux.
+------------------------------------------------------------------------- */
 
-const LABEL_H    = 30;
-const LABEL_MAX  = 22;
-// Rayon a l'ecran, en pixels, a partir duquel un album donne son nom. Le plus
-// gros album du fonds fait 80 px de rayon dans le monde : a 55, il faut avoir
-// zoome pour que son titre paraisse. De loin, la galaxie reste une forme.
-const LABEL_MIN_R = 55;
+let hovered = null;
+const tip = document.getElementById("tip");
 
-function placeLabels(k){
-  // Un titre n'apparait que lorsque son album est assez gros a l'ecran, c'est
-  // a dire lorsqu'on s'en est approche. De loin, la galaxie reste une forme ;
-  // les noms arrivent quand ils deviennent utiles.
-  const cands = nodes
-    .filter(n => n.onScreen && n.r * k >= LABEL_MIN_R)
-    .sort((a, b) => b.r - a.r);
-
-  const taken = [];
-  let shown = 0;
-
-  for (let i = 0; i < cands.length; i++) {
-    const n = cands[i];
-    let ok = shown < LABEL_MAX;
-    if (ok) {
-      const w = n.labelW, h = LABEL_H;
-      const x = n.sx - w / 2, y = n.sy + n.r * k + 6;
-      for (let j = 0; j < taken.length; j++) {
-        const t = taken[j];
-        if (x < t.x + t.w && x + w > t.x && y < t.y + t.h && y + h > t.y) { ok = false; break; }
-      }
-      if (ok) { taken.push({ x, y, w, h }); shown++; }
-    }
-    setLabel(n, ok, k);
-  }
-  nodes.forEach(n => { if (!n.onScreen) setLabel(n, false, k); });
+function showTip(node){
+  hovered = node;
+  tip.innerHTML = `${esc(node.a.t)}<small>${yearOf(node.a)} · ` +
+                  `${node.a.n.toLocaleString("en")} photos</small>`;
+  tip.hidden = false;
+  moveTip();
 }
 
-function setLabel(n, show, k){
-  if (!n.label) return;
-  if (show) {
-    n.label.style.top = (n.y + n.r + 6) + "px";
-    n.label.style.transform = `translate(-50%,0) scale(${(1 / k).toFixed(3)})`;
-  }
-  if (show !== n.label.classList.contains("show")) {
-    n.label.classList.toggle("show", show);
-  }
+function hideTip(){
+  hovered = null;
+  tip.hidden = true;
+}
+
+function moveTip(){
+  if (!hovered) return;
+  const k = galaxy.view.k;
+  tip.style.left = (hovered.x * k + galaxy.view.x) + "px";
+  tip.style.top  = (hovered.y * k + galaxy.view.y + hovered.r * k + 10) + "px";
 }
 
 /* --- 8. album field ----------------------------------------------------- */
@@ -444,6 +415,7 @@ async function enterAlbum(node){
   document.getElementById("aFlickr").href =
     `https://www.flickr.com/photos/cor-photos/albums/${node.a.i}`;
 
+  hideTip();
   const pworld = document.getElementById("pworld");
   pworld.innerHTML = "";
   box.hidden = false;
