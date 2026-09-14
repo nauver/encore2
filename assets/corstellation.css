@@ -8,7 +8,8 @@
 
 /* --- 1. tokens ---------------------------------------------------------- */
 :root{
-  --ink:#F2F3F5; --soft:#8E99A6; --bg:#0E1319; --panel:#171F27; --rule:#26313B;
+  --ink:#F4F6F9; --soft:#8FA0B5; --bg:#060A14; --panel:#101827; --rule:#1E2B3F;
+  --glow:#2B4EA8;
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg)}
@@ -30,13 +31,17 @@ nav a:hover{color:var(--ink);border-color:var(--soft)}
 /* --- 3. stage and world ------------------------------------------------- */
 /* Le monde est un calque transforme : translate + scale sont composites par
    le GPU, donc le deplacement reste fluide avec plus de mille noeuds. */
-#stage{position:absolute;inset:0;touch-action:none;cursor:grab;overflow:hidden}
+/* Halo central : la galaxie est plus dense au coeur, le fond l'accompagne. */
+#stage{position:absolute;inset:0;touch-action:none;cursor:grab;overflow:hidden;
+  background:radial-gradient(ellipse 55% 45% at 50% 50%,
+    rgba(43,78,168,.22), rgba(43,78,168,.06) 45%, transparent 70%)}
 #stage.dragging{cursor:grabbing}
 #world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
 
 /* --- 4. album nodes ----------------------------------------------------- */
 .album{position:absolute;border-radius:50%;transform:translate(-50%,-50%);
-  background:currentColor;opacity:.85;cursor:pointer;
+  background:currentColor;opacity:.9;cursor:pointer;
+  box-shadow:0 0 14px 2px currentColor;
   transition:opacity .18s ease,box-shadow .18s ease}
 .album:hover,.album.on{opacity:1;box-shadow:0 0 0 3px rgba(255,255,255,.28)}
 /* Couverture : l'image remplace la pastille sans changer sa geometrie. */
@@ -95,3 +100,9 @@ nav a:hover{color:var(--ink);border-color:var(--soft)}
 #hint.gone{opacity:0}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* --- 8. notice ---------------------------------------------------------- */
+#notice{position:fixed;left:50%;transform:translateX(-50%);bottom:3.4rem;z-index:7;
+  margin:0;font-size:.82rem;padding:.5rem .9rem;border-radius:4px;
+  background:var(--panel);border:1px solid var(--rule);color:var(--soft)}
+#notice.warn{border-color:#8A6A2F;color:#E8C46A}

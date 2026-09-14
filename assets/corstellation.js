@@ -27,7 +27,27 @@ const ALBUMS = window.CORSTELLATION_ALBUMS || [];
 // vignettes dans un champ, pas des tirages.
 const photoUrl = (server, id, secret, size) =>
   `https://live.staticflickr.com/${server}/${id}_${secret}_${size}.jpg`;
-const PALETTE = ["#C4562E","#1F6B5C","#7A5C9E","#2B4EA8","#8A6A2F","#4A7C59","#A0433A"];
+// Le temps se lit dans la couleur : bleu roi pour 2011, or pour 2026.
+// Une rampe continue plutot qu'une couleur par annee - l'oeil suit alors la
+// progression comme une temperature, pas comme un classement.
+const RAMP = [
+  [222, 74, 38],   // bleu roi profond
+  [216, 78, 48],
+  [205, 72, 52],
+  [188, 58, 52],
+  [168, 45, 52],
+  [ 48, 82, 58],   // or
+  [ 42, 90, 62]
+];
+function ramp(t){                       // t de 0 a 1
+  const x = Math.max(0, Math.min(0.999, t)) * (RAMP.length - 1);
+  const i = Math.floor(x), f = x - i;
+  const a = RAMP[i], b = RAMP[i + 1];
+  const h = a[0] + (b[0] - a[0]) * f;
+  const s = a[1] + (b[1] - a[1]) * f;
+  const l = a[2] + (b[2] - a[2]) * f;
+  return `hsl(${h.toFixed(0)} ${s.toFixed(0)}% ${l.toFixed(0)}%)`;
+}
 
 const view   = { x:0, y:0, k:1 };        // ce qui est affiche
 const target = { x:0, y:0, k:1 };        // ce vers quoi on glisse
@@ -47,35 +67,52 @@ const yearOf = a => a.d.slice(0,4);
 // recouvrement, sans simulation physique.
 
 function layout(){
+  // Trois bras en spirale logarithmique, parcourus dans l'ordre chronologique.
+  // Le rayon croit avec le temps, l'angle tourne : on obtient la forme d'une
+  // galaxie plutot qu'un escargot regulier. Une dispersion aleatoire mais
+  // reproductible epaissit les bras et evite l'aspect trace au compas.
+  const N = ALBUMS.length;
+  const ARMS = 3, TURNS = 2.35, R0 = 130, R1 = 2600;
+
+  // Generateur pseudo-aleatoire a graine : la disposition ne change pas d'un
+  // chargement a l'autre, ce qui compte pour un ecran qu'on regarde souvent.
+  let seed = 20260914;
+  const rnd = () => (seed = (seed * 1664525 + 1013904223) % 4294967296) / 4294967296;
+
   const placed = [];
-  let step = 0;
-
   nodes = ALBUMS.map((a, i) => {
-    const r = 5 + 2.6 * Math.sqrt(a.n);          // rayon selon le nombre de photos
-    let x = 0, y = 0;
+    const t   = N > 1 ? i / (N - 1) : 0;              // position dans le temps
+    const arm = i % ARMS;
+    const r   = 4 + 2.4 * Math.sqrt(a.n);
 
-    for (;;){
-      step += 0.55;
-      const ang = step * 0.42;
-      const rad = 26 * Math.sqrt(step);
-      x = rad * Math.cos(ang);
-      y = rad * Math.sin(ang);
-      const clash = placed.some(p =>
-        Math.hypot(p.x - x, p.y - y) < (p.r + r + 7));
-      if (!clash) break;
-      if (step > 1e5) break;                      // garde-fou
+    let rad = R0 + (R1 - R0) * Math.pow(t, 0.82);
+    let ang = t * TURNS * Math.PI * 2 + arm * (Math.PI * 2 / ARMS);
+
+    // epaisseur du bras : dispersion angulaire et radiale
+    ang += (rnd() - 0.5) * 0.30;
+    rad *= 1 + (rnd() - 0.5) * 0.13;
+
+    let x = rad * Math.cos(ang), y = rad * Math.sin(ang);
+
+    // On ecarte le long du rayon tant qu'un voisin est touche : la structure
+    // en bras est preservee, contrairement a un ecartement dans n'importe
+    // quelle direction.
+    let guard = 0;
+    while (placed.some(p => Math.hypot(p.x - x, p.y - y) < (p.r + r + 6)) && guard++ < 400) {
+      rad += r * 0.5;
+      x = rad * Math.cos(ang); y = rad * Math.sin(ang);
     }
+
     placed.push({ x, y, r });
-    return { a, x, y, r, el:null, label:null };
+    return { a, x, y, r, t, el:null, label:null };
   });
 
-  const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y);
-  const rs = nodes.map(n => n.r);
+  const xs = nodes.map(n => n.x), ys = nodes.map(n => n.y), rs = nodes.map(n => n.r);
   bounds = {
-    x0: Math.min(...xs.map((v,i)=>v-rs[i])) - 60,
-    y0: Math.min(...ys.map((v,i)=>v-rs[i])) - 60,
-    x1: Math.max(...xs.map((v,i)=>v+rs[i])) + 60,
-    y1: Math.max(...ys.map((v,i)=>v+rs[i])) + 60
+    x0: Math.min(...xs.map((v,i)=>v-rs[i])) - 80,
+    y0: Math.min(...ys.map((v,i)=>v-rs[i])) - 80,
+    x1: Math.max(...xs.map((v,i)=>v+rs[i])) + 80,
+    y1: Math.max(...ys.map((v,i)=>v+rs[i])) + 80
   };
 }
 
@@ -83,7 +120,6 @@ function layout(){
 
 function render(){
   const years = [...new Set(ALBUMS.map(yearOf))].sort();
-  const colOf = y => PALETTE[years.indexOf(y) % PALETTE.length];
 
   const frag = document.createDocumentFragment();
   nodes.forEach(n => {
@@ -92,7 +128,7 @@ function render(){
     d.style.left   = n.x + "px";
     d.style.top    = n.y + "px";
     d.style.width  = d.style.height = (n.r * 2) + "px";
-    d.style.color  = colOf(yearOf(n.a));
+    d.style.color  = ramp(n.t);
     // La couverture n'est posee qu'au moment ou l'echelle la rend visible :
     // douze cents images au chargement seraient un gachis.
     if (n.a.p && n.a.s && n.a.c) n.coverUrl = photoUrl(n.a.s, n.a.p, n.a.c, "q");
@@ -115,10 +151,11 @@ function render(){
   });
   world.appendChild(frag);
 
-  document.getElementById("years").innerHTML = years.map(y => {
+  document.getElementById("years").innerHTML = years.map((y, i) => {
     const list = ALBUMS.filter(a => yearOf(a) === y);
     const ph = list.reduce((s,a) => s + a.n, 0);
-    return `<span><b>${y}</b>${ph.toLocaleString("en")}</span>`;
+    const c = ramp(i / Math.max(1, years.length - 1));
+    return `<span style="border-left-color:${c}"><b style="color:${c}">${y}</b>${ph.toLocaleString("en")}</span>`;
   }).join("");
 
   const total = ALBUMS.reduce((s,a) => s + a.n, 0);
@@ -231,6 +268,7 @@ async function fetchPhotos(albumId){
     return list;
   } catch (e) {
     photoCache.set(albumId, []);
+    notice("Flickr API unreachable — check the key in index.html.", "warn");
     return [];
   }
 }
@@ -425,10 +463,25 @@ document.getElementById("close").onclick = closePanel;
 
 /* --- 7. boot ------------------------------------------------------------ */
 
+function notice(text, tone){
+  const el = document.getElementById("notice");
+  if (!el) return;
+  el.textContent = text;
+  el.className = tone || "";
+  el.hidden = false;
+}
+
 (function(){
   if (!ALBUMS.length){
     document.getElementById("sub").textContent = "No album data loaded.";
     return;
+  }
+
+  // Un echec silencieux est un defaut : on dit ce qui manque.
+  if (!FLICKR_KEY || FLICKR_KEY === "METTRE_LA_CLE_ICI"){
+    notice("No Flickr key set in index.html — covers and photographs will not load.", "warn");
+  } else if (!ALBUMS.some(a => a.p && a.s && a.c)){
+    notice("Album data has no cover fields (p, s, c) — re-export to see the covers. Photographs still load on zoom.", "warn");
   }
   layout();
   render();
