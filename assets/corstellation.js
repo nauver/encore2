@@ -153,17 +153,31 @@ function makeField(stage, world, opts){
     kick();
   });
 
-  const release = () => {
+  // setPointerCapture redirige l'evenement "click" vers la scene : le
+  // gestionnaire pose sur une planete ne le recoit jamais. On decide donc
+  // nous-memes, au relachement, s'il s'agissait d'un tap, et on retrouve
+  // l'objet vise par sa position a l'ecran.
+  function release(e){
     if (!drag) return;
-    o.lastDragMoved = drag.moved;
+    const wasTap = !drag.moved;
     drag = null;
     stage.classList.remove("dragging");
+
+    if (wasTap && e && o.onTap) {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const item = el && el.closest ? el.closest("[data-item]") : null;
+      if (item) { o.onTap(item); return; }        // un tap ne lance pas d'inertie
+    }
+
     target.x += Math.max(-700, Math.min(700, vx * 150));    // inertie
     target.y += Math.max(-700, Math.min(700, vy * 150));
     kick();
-  };
-  ["pointerup", "pointercancel", "pointerleave"]
-    .forEach(t => stage.addEventListener(t, release));
+  }
+  stage.addEventListener("pointerup", release);
+  // Un depart du pointeur n'est pas un tap : on termine le glissement sans
+  // declencher d'ouverture.
+  ["pointercancel", "pointerleave"]
+    .forEach(t => stage.addEventListener(t, () => release(null)));
 
   stage.addEventListener("touchstart", e => {
     if (!enabled || e.touches.length !== 2) return;
@@ -186,7 +200,6 @@ function makeField(stage, world, opts){
 
   return {
     view, target, kick, zoomAt, centreOn, showAll,
-    dragged(){ return !!o.lastDragMoved; },
     setBounds(b){ bounds = b; },
     fitScale(){ return fitK; },
     enable(v){ enabled = v; },
@@ -251,11 +264,7 @@ function renderGalaxy(){
     d.style.width  = d.style.height = (node.r * 2) + "px";
     d.style.color  = ramp(node.t);
     d.title = `${node.a.t} — ${node.a.n} photos`;
-    d.onclick = e => {
-      e.stopPropagation();
-      if (galaxy.dragged()) return;      // c'etait un deplacement, pas un clic
-      enterAlbum(node);
-    };
+    d.__node = node;
     node.el = d;
     if (node.a.p && node.a.s && node.a.c) {
       node.cover = photoUrl(node.a.s, node.a.p, node.a.c, "q");
@@ -465,11 +474,7 @@ async function enterAlbum(node){
     d.style.width  = d.style.height = S + "px";
     d.style.backgroundImage = `url(${photoUrl(p.server, p.id, p.secret, "q")})`;
     d.title = p.title || "";
-    d.onclick = e => {
-      e.stopPropagation();
-      if (albumField.dragged()) return;
-      openLight(i);
-    };
+    d.__index = i;
     frag.appendChild(d);
   });
   pworld.appendChild(frag);
@@ -533,7 +538,9 @@ function hideHint(){
 const galaxy = makeField(
   document.getElementById("stage"),
   world,
-  { kMin: 0.10, kMax: 8, onTick: updateDetail }
+  { kMin: 0.10, kMax: 8,
+    onTick: updateDetail,
+    onTap: el => { if (el.__node) enterAlbum(el.__node); } }
 );
 
 function active(){
@@ -559,6 +566,7 @@ function active(){
     document.getElementById("pstage"),
     document.getElementById("pworld"),
     { kMin: 0.12, kMax: 6,
+      onTap: el => { if (typeof el.__index === "number") openLight(el.__index); },
       onZoomOutPast: {
         // Le moindre recul depuis le cadrage d'ouverture ressort : c'est le
         // geste attendu, et un seuil plus bas donnait l'impression que rien
