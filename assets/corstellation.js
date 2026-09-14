@@ -198,6 +198,38 @@ function tick(){
 }
 function kick(){ if (!raf) raf = requestAnimationFrame(tick); }
 
+/* --- deplacement et echelle ---------------------------------------------
+   Le zoom garde immobile le point sous le curseur : c'est ce qui evite de se
+   perdre. Les bornes empechent de sortir de l'echelle utile.
+------------------------------------------------------------------------- */
+
+function zoomAt(px, py, factor){
+  const k = Math.max(0.05, Math.min(8, target.k * factor));
+  target.x = px - (px - target.x) * (k / target.k);
+  target.y = py - (py - target.y) * (k / target.k);
+  target.k = k;
+  kick();
+}
+
+function fitView(pad = 90){
+  const w = innerWidth, h = innerHeight;
+  const bw = bounds.x1 - bounds.x0, bh = bounds.y1 - bounds.y0;
+  const k = Math.min((w - pad * 2) / bw, (h - pad * 2) / bh);
+  target.k = k;
+  target.x = w / 2 - (bounds.x0 + bw / 2) * k;
+  target.y = h / 2 - (bounds.y0 + bh / 2) * k;
+  kick();
+}
+
+function focusNode(n, k = 1.6){
+  target.k = k;
+  target.x = innerWidth  / 2 - n.x * k;
+  target.y = innerHeight / 2 - n.y * k;
+  kick();
+}
+
+
+
 /* --- niveaux de detail ---------------------------------------------------
    Trois etats selon l'echelle :
      < 0.55  pastille coloree
@@ -408,7 +440,7 @@ function installInput(){
     if (e.key === "Escape") closePanel();
     if (e.key === "+" || e.key === "=") zoomAt(innerWidth/2, innerHeight/2, 1.5);
     if (e.key === "-") zoomAt(innerWidth/2, innerHeight/2, 1/1.5);
-    if (e.key === "0") fit();
+    if (e.key === "0") fitView();
     const step = 140;
     if (e.key === "ArrowLeft")  { target.x += step; kick(); }
     if (e.key === "ArrowRight") { target.x -= step; kick(); }
@@ -418,8 +450,8 @@ function installInput(){
 
   document.getElementById("zIn").onclick  = () => zoomAt(innerWidth/2, innerHeight/2, 1.6);
   document.getElementById("zOut").onclick = () => zoomAt(innerWidth/2, innerHeight/2, 1/1.6);
-  document.getElementById("fit").onclick  = () => { closePanel(); fit(); };
-  addEventListener("resize", () => fit());
+  document.getElementById("fit").onclick  = () => { closePanel(); fitView(); };
+  addEventListener("resize", () => fitView());
 }
 
 let hintTimer = null;
@@ -483,6 +515,6 @@ function notice(text, tone){
   layout();
   render();
   installInput();
-  fit();
+  fitView();
   setTimeout(() => hideHint(), 6000);
 })();
