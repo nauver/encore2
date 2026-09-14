@@ -139,7 +139,9 @@ function render(){
 
     // Les libelles n'existent que pour les albums consequents : mille deux
     // cents etiquettes seraient illisibles et couteuses a afficher.
-    if (n.a.n >= 120){
+    // Un libelle par album serait illisible de loin ; on en montre de plus en
+    // plus a mesure qu'on approche (voir le seuil dans la boucle d'affichage).
+    if (n.a.n >= 25){
       const l = document.createElement("div");
       l.className = "label";
       l.style.left = n.x + "px";
@@ -180,11 +182,14 @@ function tick(){
 
   // Les libelles apparaissent quand l'echelle les rend lisibles, et se
   // contre-echellent pour garder une taille constante a l'ecran.
-  const show = view.k > 0.42;
+  // Plus on approche, plus les petits albums donnent leur nom.
+  const k = view.k;
+  const floor = k > 1.6 ? 0 : k > 0.95 ? 60 : k > 0.5 ? 140 : Infinity;
   nodes.forEach(n => {
     if (!n.label) return;
+    const show = n.a.n >= floor;
     if (show !== n.label.classList.contains("show")) n.label.classList.toggle("show", show);
-    if (show) n.label.style.transform = `translate(-50%,0) scale(${(1/view.k).toFixed(3)})`;
+    if (show) n.label.style.transform = `translate(-50%,0) scale(${(1/k).toFixed(3)})`;
   });
 
   const moving = Math.abs(target.x-view.x) > .3 || Math.abs(target.y-view.y) > .3 ||
@@ -207,59 +212,39 @@ let detailPass = 0;
 function updateDetail(){
   if (++detailPass % 4) return;            // une image sur quatre suffit
 
-  const k = view.k;
-  const pad = 240;
-  const vis = [];
-
+  const k = view.k, pad = 240;
   nodes.forEach(n => {
     const sx = n.x * k + view.x, sy = n.y * k + view.y;
     const on = sx > -pad && sx < innerWidth + pad && sy > -pad && sy < innerHeight + pad;
 
-    if (!on){
-      if (n.mode) { n.el.style.backgroundImage = ""; dropPhotos(n); n.mode = null; }
-      return;
-    }
-    vis.push(n);
-
-    const want = k >= 1.6 ? "photos" : (k >= 0.55 ? "cover" : "dot");
+    const want = (on && k >= 0.5 && n.coverUrl) ? "cover" : "dot";
     if (want === n.mode) return;
 
-    if (want === "dot"){
+    if (want === "cover"){
+      n.el.style.backgroundImage = `url(${n.coverUrl})`;
+      n.el.classList.add("cover");
+    } else {
       n.el.style.backgroundImage = "";
       n.el.classList.remove("cover");
-      dropPhotos(n);
-    }
-    else if (want === "cover"){
-      dropPhotos(n);
-      if (n.coverUrl){
-        n.el.style.backgroundImage = `url(${n.coverUrl})`;
-        n.el.classList.add("cover");
-      }
-    }
-    else {
-      if (n.coverUrl){
-        n.el.style.backgroundImage = `url(${n.coverUrl})`;
-        n.el.classList.add("cover");
-      }
-      loadPhotos(n);
     }
     n.mode = want;
   });
 }
 
-function dropPhotos(n){
-  if (!n.photoEl) return;
-  n.photoEl.remove();
-  n.photoEl = null;
-}
+/* --- vue album ------------------------------------------------------------
+   Au clic, on entre dans l'album : le champ disparait, les photos s'etalent en
+   grille. Une couronne de vignettes dans l'espace se chevauchait des que deux
+   albums etaient voisins, et rien n'etait cliquable proprement.
+------------------------------------------------------------------------- */
 
 const photoCache = new Map();
+let current = { list: [], index: 0, node: null };
 
 async function fetchPhotos(albumId){
   if (photoCache.has(albumId)) return photoCache.get(albumId);
   const u = "https://api.flickr.com/services/rest/?method=flickr.photosets.getPhotos" +
             `&api_key=${FLICKR_KEY}&photoset_id=${albumId}&user_id=${FLICKR_NSID}` +
-            "&per_page=80&format=json&nojsoncallback=1";
+            "&per_page=500&format=json&nojsoncallback=1";
   try {
     const r = await fetch(u);
     const j = await r.json();
@@ -267,74 +252,69 @@ async function fetchPhotos(albumId){
     photoCache.set(albumId, list);
     return list;
   } catch (e) {
-    photoCache.set(albumId, []);
     notice("Flickr API unreachable — check the key in index.html.", "warn");
+    photoCache.set(albumId, []);
     return [];
   }
 }
 
-async function loadPhotos(n){
-  if (n.photoEl || n.loading) return;
-  n.loading = true;
+async function enterAlbum(n){
+  const box = document.getElementById("album");
+  document.getElementById("aTitle").textContent = n.a.t;
+  document.getElementById("aMeta").textContent =
+    `${n.a.n.toLocaleString("en")} photographs · ${new Date(n.a.d).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}`;
+  document.getElementById("aFlickr").href =
+    `https://www.flickr.com/photos/cor-photos/albums/${n.a.i}`;
+  document.getElementById("grid").innerHTML = "";
+  document.getElementById("aMore").hidden = true;
+  box.hidden = false;
+  box.scrollTop = 0;
+
   const list = await fetchPhotos(n.a.i);
-  n.loading = false;
-  if (!list.length || n.mode !== "photos") return;
+  if (box.hidden) return;                    // l'utilisateur est deja ressorti
+  current = { list, index: 0, node: n };
 
-  // Les vignettes se rangent en couronne autour de la pastille : l'album reste
-  // lisible comme un objet, et on voit ce qu'il contient sans l'ouvrir.
-  const wrap = document.createElement("div");
-  wrap.className = "photos";
-  const count = Math.min(list.length, 48);
-  const size  = Math.max(14, n.r * 0.42);
-
-  for (let i = 0; i < count; i++){
-    const p = list[i];
-    const ang = i * 2.3999632;
-    const rad = n.r * 1.15 + size * 0.62 * Math.sqrt(i);
+  const grid = document.getElementById("grid");
+  const frag = document.createDocumentFragment();
+  list.forEach((p, i) => {
     const img = document.createElement("img");
     img.loading = "lazy";
     img.decoding = "async";
-    img.src = photoUrl(p.server, p.id, p.secret, "q");
+    img.src = photoUrl(p.server, p.id, p.secret, "n");   // 320 px
     img.alt = p.title || "";
-    img.style.width = img.style.height = size + "px";
-    img.style.left = (n.x + rad * Math.cos(ang)) + "px";
-    img.style.top  = (n.y + rad * Math.sin(ang)) + "px";
     img.title = p.title || "";
-    img.onclick = e => {
-      e.stopPropagation();
-      open(`https://www.flickr.com/photos/cor-photos/${p.id}/in/album-${n.a.i}/`, "_blank", "noopener");
-    };
-    wrap.appendChild(img);
+    img.setAttribute("role", "listitem");
+    img.onclick = () => openLight(i);
+    frag.appendChild(img);
+  });
+  grid.appendChild(frag);
+
+  if (n.a.n > list.length){
+    const more = document.getElementById("aMore");
+    more.textContent = `Showing the first ${list.length} of ${n.a.n} photographs — the rest are on Flickr.`;
+    more.hidden = false;
   }
-  world.appendChild(wrap);
-  n.photoEl = wrap;
 }
 
-function zoomAt(px, py, factor){
-  const k = Math.max(0.06, Math.min(6, target.k * factor));
-  // On garde le point sous le doigt immobile : c'est ce qui evite de se perdre.
-  target.x = px - (px - target.x) * (k / target.k);
-  target.y = py - (py - target.y) * (k / target.k);
-  target.k = k;
-  kick();
+function leaveAlbum(){
+  document.getElementById("album").hidden = true;
+  document.getElementById("grid").innerHTML = "";
 }
 
-function fit(pad = 90){
-  const w = innerWidth, h = innerHeight;
-  const bw = bounds.x1 - bounds.x0, bh = bounds.y1 - bounds.y0;
-  const k = Math.min((w - pad*2) / bw, (h - pad*2) / bh);
-  target.k = k;
-  target.x = w/2 - (bounds.x0 + bw/2) * k;
-  target.y = h/2 - (bounds.y0 + bh/2) * k;
-  kick();
-}
+/* --- photo en grand ----------------------------------------------------- */
 
-function focusNode(n, k = 1.6){
-  target.k = k;
-  target.x = innerWidth/2  - n.x * k;
-  target.y = innerHeight/2 - n.y * k;
-  kick();
+function openLight(i){
+  if (!current.list.length) return;
+  current.index = (i + current.list.length) % current.list.length;
+  const p = current.list[current.index];
+  document.getElementById("lImg").src = photoUrl(p.server, p.id, p.secret, "b"); // 1024 px
+  document.getElementById("lImg").alt = p.title || "";
+  document.getElementById("lCap").textContent =
+    `${p.title || "Untitled"} · ${current.index + 1} of ${current.list.length}`;
+  document.getElementById("light").hidden = false;
 }
+function closeLight(){ document.getElementById("light").hidden = true; }
+function stepLight(d){ openLight(current.index + d); }
 
 /* --- 5. input: mouse, wheel, touch, keyboard ---------------------------- */
 
@@ -413,6 +393,18 @@ function installInput(){
   });
 
   addEventListener("keydown", e => {
+    const lightOpen = !document.getElementById("light").hidden;
+    const albumOpen = !document.getElementById("album").hidden;
+    if (lightOpen){
+      if (e.key === "Escape")     { closeLight(); return; }
+      if (e.key === "ArrowRight") { stepLight(1);  return; }
+      if (e.key === "ArrowLeft")  { stepLight(-1); return; }
+      return;
+    }
+    if (albumOpen){
+      if (e.key === "Escape") { leaveAlbum(); closePanel(); }
+      return;
+    }
     if (e.key === "Escape") closePanel();
     if (e.key === "+" || e.key === "=") zoomAt(innerWidth/2, innerHeight/2, 1.5);
     if (e.key === "-") zoomAt(innerWidth/2, innerHeight/2, 1/1.5);
@@ -444,13 +436,13 @@ function openAlbum(n){
   if (selected) selected.el.classList.remove("on");
   selected = n;
   n.el.classList.add("on");
+  enterAlbum(n);
 
   document.getElementById("pTitle").textContent = n.a.t;
   document.getElementById("pMeta").textContent =
     `${n.a.n.toLocaleString("en")} photographs · created ${new Date(n.a.d).toLocaleDateString("en-GB",{day:"numeric",month:"long",year:"numeric"})}`;
   document.getElementById("pOpen").href =
     `https://www.flickr.com/photos/cor-photos/albums/${n.a.i}`;
-  document.getElementById("panel").classList.add("open");
   focusNode(n, Math.max(target.k, 1.2));
   hideHint();
 }
@@ -460,6 +452,11 @@ function closePanel(){
   if (selected) { selected.el.classList.remove("on"); selected = null; }
 }
 document.getElementById("close").onclick = closePanel;
+document.getElementById("back").onclick    = () => { leaveAlbum(); closePanel(); };
+document.getElementById("lClose").onclick  = closeLight;
+document.getElementById("lPrev").onclick   = () => stepLight(-1);
+document.getElementById("lNext").onclick   = () => stepLight(1);
+document.getElementById("light").onclick   = e => { if (e.target.id === "light") closeLight(); };
 
 /* --- 7. boot ------------------------------------------------------------ */
 

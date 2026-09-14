@@ -27,7 +27,30 @@
 
 <div id="years" aria-hidden="true"></div>
 
-<aside id="panel">
+<!-- Vue album : on entre dedans, le champ s'efface derriere -->
+<section id="album" hidden>
+  <header class="abar">
+    <button id="back" aria-label="Back to the constellation">← Back</button>
+    <div>
+      <h2 id="aTitle"></h2>
+      <p id="aMeta"></p>
+    </div>
+    <a id="aFlickr" target="_blank" rel="noopener">Open on Flickr</a>
+  </header>
+  <div id="grid" role="list"></div>
+  <p id="aMore" hidden></p>
+</section>
+
+<!-- Photo en grand -->
+<div id="light" hidden>
+  <button id="lClose" aria-label="Close">×</button>
+  <button id="lPrev" aria-label="Previous">‹</button>
+  <img id="lImg" alt="">
+  <button id="lNext" aria-label="Next">›</button>
+  <p id="lCap"></p>
+</div>
+
+<aside id="panel" hidden>
   <button class="close" id="close" aria-label="Close">×</button>
   <h2 id="pTitle"></h2>
   <p class="meta" id="pMeta"></p>
@@ -41,7 +64,7 @@
 </div>
 
 <p id="notice" hidden></p>
-<p id="hint">drag to move · zoom in to reveal the covers, then the photographs</p>
+<p id="hint">drag to move · zoom in for the covers · click an album to enter it</p>
 
 <!-- Cle publique de l'application Flickr du CoR : elle identifie l'application
      et ne donne aucun droit d'ecriture. A remplacer par la votre. -->
