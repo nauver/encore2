@@ -87,6 +87,12 @@ function makeField(stage, world, opts){
   const kick = () => { if (!raf) raf = requestAnimationFrame(tick); };
 
   function zoomAt(px, py, factor){
+    // Dezoomer au-dela du cadrage d'ouverture est une facon naturelle de
+    // ressortir : dans un album, c'est le geste qui ramene a la galaxie.
+    if (factor < 1 && o.onZoomOutPast && target.k <= o.onZoomOutPast.threshold()) {
+      o.onZoomOutPast.action();
+      return;
+    }
     const k = Math.max(o.kMin, Math.min(o.kMax, target.k * factor));
     // Le point sous le curseur reste immobile : c'est ce qui evite de se perdre.
     target.x = px - (px - target.x) * (k / target.k);
@@ -102,11 +108,13 @@ function makeField(stage, world, opts){
     kick();
   }
 
+  let fitK = 1;
   function showAll(pad = 80){
     if (!bounds) return;
     const bw = bounds.x1 - bounds.x0, bh = bounds.y1 - bounds.y0;
     const k = Math.max(o.kMin,
       Math.min((innerWidth - pad * 2) / bw, (innerHeight - pad * 2) / bh));
+    fitK = k;
     centreOn(bounds.x0 + bw / 2, bounds.y0 + bh / 2, k);
   }
 
@@ -173,6 +181,7 @@ function makeField(stage, world, opts){
   return {
     view, target, kick, zoomAt, centreOn, showAll,
     setBounds(b){ bounds = b; },
+    fitScale(){ return fitK; },
     enable(v){ enabled = v; },
     isEnabled(){ return enabled; }
   };
@@ -311,13 +320,17 @@ function updateDetail(view){
 // deja places. Le calcul se fait en coordonnees ecran, et le nombre affiche
 // s'ajuste de lui-meme a la densite du moment.
 
-const LABEL_H   = 30;
-const LABEL_MAX = 45;
+const LABEL_H    = 30;
+const LABEL_MAX  = 22;
+const LABEL_MIN_R = 26;   // rayon a l'ecran, en pixels
 
 function placeLabels(k){
+  // Un titre n'apparait que lorsque son album est assez gros a l'ecran, c'est
+  // a dire lorsqu'on s'en est approche. De loin, la galaxie reste une forme ;
+  // les noms arrivent quand ils deviennent utiles.
   const cands = nodes
-    .filter(n => n.onScreen && n.r * k > 7)       // trop petit = illisible
-    .sort((a, b) => b.a.n - a.a.n);
+    .filter(n => n.onScreen && n.r * k >= LABEL_MIN_R)
+    .sort((a, b) => b.r - a.r);
 
   const taken = [];
   let shown = 0;
@@ -501,7 +514,11 @@ function active(){
   albumField = makeField(
     document.getElementById("pstage"),
     document.getElementById("pworld"),
-    { kMin: 0.15, kMax: 6 }
+    { kMin: 0.12, kMax: 6,
+      onZoomOutPast: {
+        threshold: () => albumField.fitScale() * 0.82,
+        action:    () => leaveAlbum()
+      } }
   );
 
   document.getElementById("zoomIn").onclick  =
