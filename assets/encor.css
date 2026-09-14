@@ -1,0 +1,84 @@
+/* =========================================================================
+   enCoR — reading view stylesheet
+   Sections: 1 design tokens · 2 base · 3 search · 4 session header
+             5 timeline · 6 quote card · 7 context · 8 deep search
+   ========================================================================= */
+:root{
+  --ink:#1B2430; --soft:#5A6672; --rule:#E4E3DD; --paper:#FFF; --panel:#F5F4F0;
+  --s1:#1F6B5C; --s2:#C4562E; --s3:#2B4EA8; --s4:#7A5C9E; --s5:#8A6A2F;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.wrap{max-width:62rem;margin:0 auto;padding:3rem 1.5rem 7rem}
+h1{font-family:"Source Serif 4",Georgia,serif;font-weight:600;font-size:2rem;line-height:1.15;margin:0 0 .4rem}
+.sub{margin:0;color:var(--soft);font-size:.9rem}
+
+.search{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:1.75rem 0 0}
+.search input{flex:1;min-width:14rem;font:inherit;font-size:1rem;padding:.55rem .8rem;border:1px solid var(--rule);border-radius:2px}
+.chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.9rem 0 0}
+.chips button{font:inherit;font-size:.8rem;padding:.25rem .65rem;border:1px solid var(--rule);background:var(--paper);border-radius:999px;cursor:pointer;color:var(--soft)}
+.chips button:hover{background:var(--panel)}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.count{color:var(--soft);font-size:.85rem}
+.q blockquote{cursor:pointer}
+.q.open blockquote{transform:scale(.94);transform-origin:left center;transition:transform .28s cubic-bezier(.2,.7,.2,1)}
+.q blockquote{transition:transform .28s cubic-bezier(.2,.7,.2,1)}
+.ctx{overflow:hidden;max-height:0;opacity:0;transition:max-height .35s ease,opacity .25s ease .05s}
+.q.open .ctx{max-height:60rem;opacity:1;margin-top:.6rem}
+.ctx p{margin:0 0 .6rem;color:var(--soft);font-size:.95rem;line-height:1.55;max-width:42em}
+.ctx p.here{color:var(--ink)}
+.ctx .lbl{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--soft);margin:.2rem 0 .5rem}
+.ctx .loading{font-style:italic}
+.deep{margin:2.5rem 0 0;border-top:1px solid var(--rule);padding-top:1.25rem}
+.deep h2{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--soft);margin:0 0 .3rem}
+.deep p.lead{color:var(--soft);font-size:.85rem;margin:0 0 1rem;max-width:44em}
+.seg{display:grid;grid-template-columns:5.5rem 1fr;gap:1.5rem;padding:.9rem 0;border-top:1px solid var(--rule)}
+.seg .t{font-variant-numeric:tabular-nums;font-size:.85rem;color:var(--soft)}
+.seg .s{font-size:.78rem;color:var(--soft);text-transform:uppercase;letter-spacing:.04em;margin:0 0 .25rem}
+.seg .x{margin:0;max-width:44em}
+.seg a{font-size:.85rem}
+.more{margin-top:1rem}
+.more button{font:inherit;font-size:.85rem;padding:.35rem .8rem;border:1px solid var(--rule);background:var(--paper);border-radius:2px;cursor:pointer}
+.from{font-size:.78rem;color:var(--soft);text-transform:uppercase;letter-spacing:.04em;margin:0 0 .35rem}
+mark{background:#F3E7C8;color:inherit;padding:0 .1em}
+.tabs{display:flex;flex-wrap:wrap;gap:.5rem;margin:2rem 0 0;border-bottom:1px solid var(--rule)}
+.tabs button{font:inherit;font-size:.9rem;background:none;border:0;border-bottom:2px solid transparent;padding:.6rem .9rem;cursor:pointer;color:var(--soft)}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink);font-weight:500}
+
+.meta{margin:1.5rem 0 0;color:var(--soft);font-size:.85rem}
+.meta a{color:inherit}
+.warn{margin:.75rem 0 0;padding:.6rem .8rem;background:var(--panel);border-left:3px solid var(--s2);font-size:.85rem;color:var(--ink)}
+
+.tl{margin:2rem 0 .5rem;position:relative;height:72px}
+.tl-track{position:absolute;top:36px;left:0;right:0;height:2px;background:var(--rule)}
+.tl-mark{position:absolute;top:22px;width:2px;height:30px;background:currentColor;border:0;padding:0;cursor:pointer;transition:height .15s,top .15s}
+.tl-mark:hover,.tl-mark:focus-visible{height:50px;top:12px;outline:none}
+.tl-mark::after{content:"";position:absolute;inset:-10px -7px}
+.scale{display:flex;justify-content:space-between;color:var(--soft);font-size:.75rem;font-variant-numeric:tabular-nums}
+.legend{display:flex;flex-wrap:wrap;gap:1.25rem;margin:1.25rem 0 2rem;font-size:.85rem}
+.legend button{background:none;border:0;padding:0;font:inherit;cursor:pointer;display:flex;align-items:center;gap:.5rem;color:var(--soft)}
+.legend button[aria-pressed="true"]{color:var(--ink);font-weight:500}
+.dot{width:10px;height:10px;border-radius:50%;background:currentColor;flex:none}
+
+.q{display:grid;grid-template-columns:5.5rem 1fr;gap:1.5rem;padding:1.75rem 0;border-top:1px solid var(--rule)}
+.q-time{font-variant-numeric:tabular-nums;font-size:.85rem;padding-top:.35rem;border-left:3px solid currentColor;padding-left:.75rem}
+.q-time span{color:var(--soft)}
+blockquote{margin:0;font-family:"Source Serif 4",Georgia,serif;font-size:1.3rem;line-height:1.45;max-width:38em}
+.translation{margin:.5rem 0 0;font-family:"Source Serif 4",Georgia,serif;font-style:italic;font-size:1.05rem;line-height:1.45;color:var(--soft);max-width:38em}
+.tag{display:inline-block;margin-left:.5rem;padding:.05rem .45rem;border:1px solid var(--rule);border-radius:2px;font-size:.7rem;text-transform:uppercase;letter-spacing:.04em;color:var(--soft);vertical-align:middle}
+.who{margin:.65rem 0 0;font-size:.85rem;color:var(--soft)}
+.who b{color:var(--ink);font-weight:600}
+.act{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1rem}
+.act a,.act button{font:inherit;font-size:.85rem;padding:.35rem .8rem;border:1px solid var(--rule);background:var(--paper);border-radius:2px;cursor:pointer;color:var(--ink);text-decoration:none}
+.act a:hover,.act button:hover{background:var(--panel)}
+.act button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+
+footer{max-width:52rem;margin:0 auto;padding:0 1.5rem 3rem;color:var(--soft);font-size:.85rem}
+@media (max-width:640px){.q{grid-template-columns:1fr;gap:.75rem}.q-time{border-left:0;border-top:3px solid currentColor;padding:.5rem 0 0}blockquote{font-size:1.15rem}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* --- 9. breadcrumb ------------------------------------------------------ */
+.scope{margin:0 0 .5rem;font-size:.82rem;color:var(--soft);letter-spacing:.01em}
+.scope a{color:inherit}
+.scope b{color:var(--ink);font-weight:600}

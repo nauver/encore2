@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>enCoR — everything that was said at CoR events</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/landing.css">
+</head>
+<body>
+
+<main>
+  <header class="hero">
+    <p class="kicker">enCoR</p>
+    <h1>Everything that was said at CoR events — searchable to the second.</h1>
+    <p class="lede">
+      Three years of conferences, every speaker, every quote, every minute of
+      transcript. Find the sentence you half-remember, see who said it, and open
+      the video at exactly that moment.
+    </p>
+    <p class="lede muted">
+      The largest smart database of CoR event content. Nothing reformulated,
+      nothing invented: the exact words, dated, sourced and checked.
+    </p>
+
+    <ul class="stats" id="stats" aria-label="Corpus size"></ul>
+  </header>
+
+  <section class="picker">
+    <h2>Where do you want to start?</h2>
+    <div class="cards" id="cards"></div>
+  </section>
+
+  <section class="extra">
+    <a class="wide" href="read.html">
+      <b>Search across every event</b>
+      <span>One query, the whole corpus — quotes first, then every other moment the
+      subject came up in the raw transcripts.</span>
+    </a>
+    <a class="wide" href="albums.html">
+      <b>Fifteen years in pictures</b>
+      <span>Every CoR photo album since 2011, laid out as one navigable field.
+      1,237 albums, 104,515 photographs.</span>
+    </a>
+    <a class="wide" href="corpus.html">
+      <b>See the whole corpus at a glance</b>
+      <span>Every quote as a point, grouped by theme. Includes a full-screen mode
+      built for meetings.</span>
+    </a>
+  </section>
+
+  <footer>
+    Quotes are reviewed by a human before they appear here. Transcripts are
+    machine-generated and shown as such. Contributions from the floor are not
+    quoted.
+    <a href="admin.html">Editing view</a>
+  </footer>
+</main>
+
+<script src="data/index.js"></script>
+<script src="assets/landing.js"></script>
+</body>
+</html>

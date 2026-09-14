@@ -1,0 +1,60 @@
+/* =========================================================================
+   enCoR — landing page
+   Sections: 1 tokens · 2 hero · 3 stats · 4 entry cards · 5 wide links
+   ========================================================================= */
+
+/* --- 1. tokens ---------------------------------------------------------- */
+:root{
+  --ink:#1B2430; --soft:#5A6672; --rule:#E4E3DD; --paper:#FFF; --panel:#F5F4F0;
+  --accent:#C4562E;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--paper);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased}
+main{max-width:58rem;margin:0 auto;padding:5rem 1.5rem 6rem}
+a{color:inherit}
+
+/* --- 2. hero ------------------------------------------------------------ */
+.kicker{font-size:.8rem;text-transform:uppercase;letter-spacing:.16em;
+  color:var(--accent);margin:0 0 1.2rem;font-weight:600}
+h1{font-family:"Source Serif 4",Georgia,serif;font-weight:600;
+  font-size:clamp(2rem,5vw,3.1rem);line-height:1.12;margin:0 0 1.5rem;max-width:17em}
+.lede{font-size:1.1rem;max-width:38em;margin:0 0 1rem}
+.lede.muted{color:var(--soft);font-size:1rem}
+
+/* --- 3. stats ----------------------------------------------------------- */
+.stats{list-style:none;display:flex;flex-wrap:wrap;gap:2.5rem;
+  margin:2.5rem 0 0;padding:2rem 0 0;border-top:1px solid var(--rule)}
+.stats li{display:flex;flex-direction:column}
+.stats b{font-family:"Source Serif 4",Georgia,serif;font-size:2rem;font-weight:600;line-height:1}
+.stats span{font-size:.82rem;color:var(--soft);margin-top:.3rem}
+
+/* --- 4. entry cards ----------------------------------------------------- */
+.picker{margin-top:4.5rem}
+.picker h2{font-family:"Source Serif 4",Georgia,serif;font-size:1.35rem;
+  font-weight:600;margin:0 0 1.5rem}
+.cards{display:grid;gap:1rem;grid-template-columns:repeat(auto-fit,minmax(15rem,1fr))}
+.card{display:block;text-decoration:none;border:1px solid var(--rule);border-radius:4px;
+  padding:1.4rem;transition:border-color .15s ease,transform .15s ease}
+.card:hover{border-color:var(--ink);transform:translateY(-2px)}
+.card .yr{font-family:"Source Serif 4",Georgia,serif;font-size:1.6rem;font-weight:600;display:block}
+.card .meta{font-size:.85rem;color:var(--soft);margin-top:.45rem;display:block}
+.card .go{font-size:.85rem;margin-top:1rem;display:block;color:var(--accent)}
+.card.all{background:var(--panel);border-color:var(--panel)}
+.card.all:hover{border-color:var(--ink)}
+
+/* --- 5. wide links ------------------------------------------------------ */
+.extra{margin-top:1rem;display:grid;gap:1rem}
+.wide{display:block;text-decoration:none;border:1px solid var(--rule);border-radius:4px;
+  padding:1.2rem 1.4rem;transition:border-color .15s ease}
+.wide:hover{border-color:var(--ink)}
+.wide b{display:block;margin-bottom:.3rem}
+.wide span{font-size:.9rem;color:var(--soft)}
+
+footer{margin-top:4rem;padding-top:1.5rem;border-top:1px solid var(--rule);
+  font-size:.82rem;color:var(--soft);max-width:44em}
+footer a{margin-left:.75rem}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}

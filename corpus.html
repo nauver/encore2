@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>enCoR — the corpus at a glance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/corpus.css">
+</head>
+
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>The corpus at a glance</h1>
+    <p class="sub" id="sub">loading…</p>
+    <p class="sub" style="opacity:.7">drag to move · scroll or pinch to zoom</p>
+  </div>
+  <nav>
+    <button id="playBtn">Present</button>
+    <a href="read.html">Read</a>
+    <a href="index.html">Home</a>
+    <a href="admin.html">Edit</a>
+  </nav>
+</header>
+
+<div id="stage"><svg id="map" role="img" aria-label="Every quote in the corpus, grouped by theme. Drag to move, scroll or pinch to zoom."></svg></div>
+
+<div id="zoombar">
+  <button id="zoomIn"  aria-label="Zoom in">+</button>
+  <button id="zoomOut" aria-label="Zoom out">−</button>
+  <button id="fit" aria-label="Fit the whole corpus">Fit</button>
+</div>
+
+<div id="legend"></div>
+<div id="tip"></div>
+
+<aside id="detail" aria-live="polite">
+  <button class="close" id="closeDetail" aria-label="Close">×</button>
+  <div id="detailBody"></div>
+</aside>
+
+<div id="story" role="dialog" aria-label="Presentation mode">
+  <div class="prog" id="prog"></div>
+  <p class="theme" id="sTheme"></p>
+  <blockquote id="sQuote"></blockquote>
+  <p class="tr" id="sTr"></p>
+  <p class="who" id="sWho"></p>
+  <div class="nav">click or press → to advance · ← to go back · Esc to leave</div>
+</div>
+
+<script src="data/index.js"></script>
+<script src="assets/corpus.js"></script>
+</body>
+</html>

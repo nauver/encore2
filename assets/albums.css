@@ -1,0 +1,83 @@
+/* =========================================================================
+   enCoR — album constellation
+   Sections: 1 tokens · 2 header · 3 stage and world · 4 album nodes
+             5 year ruler · 6 panel · 7 hud
+   Built for a wall display and for touch: large hit areas, no hover-only
+   affordance, everything reachable with one finger.
+   ========================================================================= */
+
+/* --- 1. tokens ---------------------------------------------------------- */
+:root{
+  --ink:#F2F3F5; --soft:#8E99A6; --bg:#0E1319; --panel:#171F27; --rule:#26313B;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg)}
+body{color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif;
+  -webkit-font-smoothing:antialiased;overscroll-behavior:none}
+
+/* --- 2. header ---------------------------------------------------------- */
+header{position:fixed;top:0;left:0;right:0;z-index:6;padding:1.1rem 1.75rem;
+  display:flex;gap:1.5rem;align-items:baseline;flex-wrap:wrap;pointer-events:none;
+  background:linear-gradient(var(--bg) 55%,transparent)}
+header>*{pointer-events:auto}
+h1{font-family:"Source Serif 4",Georgia,serif;font-size:1.4rem;font-weight:600;margin:0}
+.sub{color:var(--soft);font-size:.85rem;margin:.15rem 0 0}
+nav{margin-left:auto;display:flex;gap:.5rem}
+nav a{font-size:.85rem;color:var(--soft);text-decoration:none;border:1px solid var(--rule);
+  border-radius:3px;padding:.35rem .8rem}
+nav a:hover{color:var(--ink);border-color:var(--soft)}
+
+/* --- 3. stage and world ------------------------------------------------- */
+/* Le monde est un calque transforme : translate + scale sont composites par
+   le GPU, donc le deplacement reste fluide avec plus de mille noeuds. */
+#stage{position:absolute;inset:0;touch-action:none;cursor:grab;overflow:hidden}
+#stage.dragging{cursor:grabbing}
+#world{position:absolute;top:0;left:0;transform-origin:0 0;will-change:transform}
+
+/* --- 4. album nodes ----------------------------------------------------- */
+.album{position:absolute;border-radius:50%;transform:translate(-50%,-50%);
+  background:currentColor;opacity:.85;cursor:pointer;
+  transition:opacity .18s ease,box-shadow .18s ease}
+.album:hover,.album.on{opacity:1;box-shadow:0 0 0 3px rgba(255,255,255,.28)}
+.album::after{content:"";position:absolute;inset:-14px;border-radius:50%}
+
+.label{position:absolute;transform:translate(-50%,0);white-space:nowrap;
+  font-size:12px;color:var(--ink);text-shadow:0 1px 3px rgba(0,0,0,.9);
+  pointer-events:none;opacity:0;transition:opacity .2s ease}
+.label.show{opacity:.92}
+.label small{display:block;color:var(--soft);font-size:10px}
+
+/* --- 5. year ruler ------------------------------------------------------ */
+#years{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;
+  justify-content:center;gap:.1rem;padding:.6rem 1rem 1.1rem;pointer-events:none;
+  background:linear-gradient(transparent,var(--bg) 55%)}
+#years span{font-size:.7rem;color:var(--soft);font-variant-numeric:tabular-nums;
+  padding:0 .45rem;border-left:1px solid var(--rule)}
+#years span b{display:block;color:var(--ink);font-weight:500;font-size:.78rem}
+
+/* --- 6. panel ----------------------------------------------------------- */
+#panel{position:fixed;right:0;top:0;bottom:0;width:min(26rem,92vw);z-index:8;
+  background:var(--panel);border-left:1px solid var(--rule);padding:4.5rem 1.75rem 2rem;
+  transform:translateX(100%);transition:transform .3s cubic-bezier(.2,.7,.2,1)}
+#panel.open{transform:none}
+#panel h2{font-family:"Source Serif 4",Georgia,serif;font-size:1.4rem;
+  font-weight:600;margin:0;line-height:1.25}
+#panel .meta{color:var(--soft);font-size:.9rem;margin:.8rem 0 0}
+#panel .open{display:inline-block;margin-top:1.6rem;background:var(--ink);color:var(--bg);
+  text-decoration:none;padding:.55rem 1rem;border-radius:3px;font-size:.9rem}
+#panel .close{position:absolute;top:1rem;right:1.25rem;background:none;border:0;
+  color:var(--soft);font-size:1.6rem;cursor:pointer;line-height:1}
+
+/* --- 7. hud ------------------------------------------------------------- */
+#hud{position:fixed;right:1.75rem;bottom:3.25rem;z-index:6;display:flex;gap:.4rem}
+#hud button{font:inherit;font-size:1rem;min-width:2.6rem;height:2.6rem;
+  background:var(--panel);color:var(--ink);border:1px solid var(--rule);
+  border-radius:4px;cursor:pointer;line-height:1}
+#hud button:hover{border-color:var(--soft)}
+#hud #fit{font-size:.8rem;padding:0 .9rem}
+
+#hint{position:fixed;left:1.75rem;bottom:3.4rem;z-index:6;margin:0;
+  font-size:.78rem;color:var(--soft);opacity:.75;transition:opacity .4s ease}
+#hint.gone{opacity:0}
+
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}

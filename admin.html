@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>enCoR — admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/admin.css">
+</head>
+
+</head>
+<body>
+<header>
+  <h1>enCoR — admin</h1>
+  <select id="sess"></select>
+  <label>startUTC <input type="number" id="startUTC" style="width:11rem"></label>
+  <label>global shift <input type="number" id="shift" value="0" style="width:5rem"> s</label>
+  <button id="applyShift">Apply shift to all</button>
+  <span id="counter" style="margin-left:auto;color:var(--soft)"></span>
+</header>
+
+<div class="player">
+  <iframe id="frame" title="Session player"></iframe>
+  <div class="playerbar">
+    <button id="openTab">Open in a tab</button>
+    <code id="frameHint">Click a quote below to load that moment.</code>
+  </div>
+  <p class="hint">Same offset on every quote? Fix <b>startUTC</b> or use <b>global shift</b> — do not nudge them one by one. Validated quotes move to the top.</p>
+</div>
+
+<div class="list" id="list"></div>
+
+<div class="bar">
+  <button class="primary" id="export">Download data file</button>
+  <button id="exportAll">Export including unvalidated</button>
+  <span id="status" style="color:var(--soft)"></span>
+</div>
+
+<script src="data/index.js"></script>
+<script src="assets/admin.js"></script>
+</body>
+</html>

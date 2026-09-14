@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>enCoR — fifteen years in pictures</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/albums.css">
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Fifteen years in pictures</h1>
+    <p class="sub" id="sub">loading…</p>
+  </div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="corpus.html">Quotes</a>
+  </nav>
+</header>
+
+<div id="stage">
+  <div id="world"></div>
+</div>
+
+<div id="years" aria-hidden="true"></div>
+
+<aside id="panel">
+  <button class="close" id="close" aria-label="Close">×</button>
+  <h2 id="pTitle"></h2>
+  <p class="meta" id="pMeta"></p>
+  <a class="open" id="pOpen" target="_blank" rel="noopener">Open the album on Flickr</a>
+</aside>
+
+<div id="hud">
+  <button id="zIn"  aria-label="Zoom in">+</button>
+  <button id="zOut" aria-label="Zoom out">−</button>
+  <button id="fit">Fit</button>
+</div>
+
+<p id="hint">drag to move · scroll or pinch to zoom · double-click to dive in</p>
+
+<script src="data/flickr-albums.js"></script>
+<script src="assets/albums.js"></script>
+</body>
+</html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EuroPCom — timestamped quotes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/encor.css">
+</head>
+
+</head>
+<body>
+<div class="wrap">
+  <h1>What was said at EuroPCom</h1>
+  <p class="scope" id="scope"></p>
+  <p class="sub">Timestamped quotes, drawn from the transcripts and linked to the exact second of the video on the portal.
+     <a href="corpus.html">See the whole corpus at a glance →</a></p>
+
+  <div class="search">
+    <input id="q" type="search" placeholder="Search across every session — a word, a speaker, a theme" aria-label="Search">
+    <span class="count" id="count"></span>
+  </div>
+  <div class="chips" id="chips"></div>
+
+  <div class="tabs" id="tabs" role="tablist"></div>
+  <p class="meta" id="meta"></p>
+  <div id="warn"></div>
+
+  <div class="tl" id="tl"><div class="tl-track"></div></div>
+  <div class="scale" id="scale"></div>
+  <div class="legend" id="legend"></div>
+
+  <div id="list"></div>
+  <div class="deep" id="deep" hidden></div>
+</div>
+
+<footer>
+  Every quote opens the video at the right moment on the CoR webstreaming portal.
+  Transcript punctuation is machine-generated and has been normalised;
+  contributions from the floor are not included.
+</footer>
+
+<!-- ---------------------------------------------------------------------
+     Scripts, in dependency order. Nothing runs inline: the page can be
+     served under a strict Content-Security-Policy without 'unsafe-inline'.
+     ------------------------------------------------------------------- -->
+<script src="assets/core.js"></script>
+<script src="assets/vocabulary.js"></script>
+<script src="assets/context.js"></script>
+<script src="data/index.js"></script>
+<script src="assets/read.js"></script>
+</body>
+</html>
