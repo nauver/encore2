@@ -191,7 +191,9 @@ function makeField(stage, world, opts){
     e.preventDefault();
     const a = e.touches[0], b = e.touches[1];
     const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
-    zoomAt((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2, pinch.d / d);
+    // Ecarter les doigts agrandit : le facteur est donc la distance nouvelle
+    // sur l'ancienne, et non l'inverse.
+    zoomAt((a.clientX + b.clientX) / 2, (a.clientY + b.clientY) / 2, d / pinch.d);
     pinch.d = d;
   }, { passive: false });
 
