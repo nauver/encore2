@@ -209,6 +209,29 @@ function makeField(stage, world, opts){
   };
 }
 
+/* --- 3bis. topics ------------------------------------------------------- */
+// Les themes sont tires des titres d'albums, pas des mots-cles des photos :
+// les titres suivent la nomenclature de l'institution et sont bien plus
+// reguliers. Un album peut en porter plusieurs - c'est ce qui donne au nuage
+// sa forme. Ceux qui n'en portent aucun ne sont pas forces dans une categorie :
+// ce sont des occasions, pas des sujets, et ils restent visibles a la peripherie.
+
+const TOPICS = (window.CORSTELLATION_TOPICS || []).map(t => ({
+  name: t.name, re: new RegExp(t.rx, "i"), albums: []
+}));
+
+function tagAlbums(){
+  nodes.forEach(n => {
+    n.topics = TOPICS.filter(t => t.re.test(n.a.t));
+    n.topics.forEach(t => t.albums.push(n));
+  });
+  // Les themes vides ne meritent pas un amas.
+  for (let i = TOPICS.length - 1; i >= 0; i--) {
+    if (!TOPICS[i].albums.length) TOPICS.splice(i, 1);
+  }
+  TOPICS.sort((a, b) => b.albums.length - a.albums.length);
+}
+
 /* --- 4. galaxy layout --------------------------------------------------- */
 // Trois bras en spirale, parcourus dans l'ordre chronologique : 2011 pres du
 // centre, 2026 au bord. La densite d'une annee se lit d'un coup d'oeil.
@@ -237,7 +260,7 @@ function layoutGalaxy(){
       x = rad * Math.cos(ang); y = rad * Math.sin(ang);
     }
     placed.push({ x, y, r });
-    return { a, x, y, r, t, el: null,
+    return { a, x, y, r, t, el: null, hx: x, hy: y, tx: x, ty: y, topics: [],
              mode: null, cover: null, onScreen: false, sx: 0, sy: 0 };
   });
 
@@ -247,6 +270,80 @@ function layoutGalaxy(){
     y0: Math.min.apply(null, nodes.map(p => p.y - p.r)) - pad,
     x1: Math.max.apply(null, nodes.map(p => p.x + p.r)) + pad,
     y1: Math.max.apply(null, nodes.map(p => p.y + p.r)) + pad
+  };
+}
+
+/* --- 4bis. topic layout -------------------------------------------------
+   Les memes objets, une autre organisation : un amas par theme, dispose en
+   spirale de phyllotaxie, et a l'interieur de chaque amas les albums semes de
+   la meme facon. Un album porteur de plusieurs themes rejoint le plus petit
+   d'entre eux - celui ou il compte le plus.
+
+   Les positions sont calculees une fois pour toutes ; la bascule se contente
+   de les appliquer, ce qui permet de l'animer.
+------------------------------------------------------------------------- */
+
+let topicClusters = [];
+let timeBounds = null, topicBounds = null;
+
+function layoutTopics(){
+  // Chaque album n'apparait qu'une fois : on le rattache au theme le moins
+  // frequent qu'il porte, sinon les gros themes avaleraient tout.
+  const home = new Map();
+  nodes.forEach(n => {
+    if (!n.topics.length) return;
+    const t = n.topics.reduce((a, b) => a.albums.length <= b.albums.length ? a : b);
+    if (!home.has(t)) home.set(t, []);
+    home.get(t).push(n);
+  });
+
+  const groups = [...home.entries()]
+    .map(([t, list]) => ({ topic: t, list }))
+    .sort((a, b) => b.list.length - a.list.length);
+
+  const orphans = nodes.filter(n => !n.topics.length);
+
+  topicClusters = [];
+  const placed = [];
+  let step = 0;
+
+  groups.forEach(g => {
+    // rayon de l'amas : de quoi loger ses albums sans se toucher
+    const area = g.list.reduce((s, n) => s + (n.r + 9) * (n.r + 9) * 4, 0);
+    const R = Math.max(70, Math.sqrt(area / Math.PI) * 1.18);
+
+    let cx = 0, cy = 0;
+    for (;;) {
+      step += 0.7;
+      const ang = step * 0.48, rad = 118 * Math.sqrt(step);
+      cx = rad * Math.cos(ang); cy = rad * Math.sin(ang);
+      if (!placed.some(p => Math.hypot(p.cx - cx, p.cy - cy) < p.R + R + 90)) break;
+      if (step > 4e4) break;
+    }
+    placed.push({ cx, cy, R });
+    topicClusters.push({ topic: g.topic, cx, cy, R, count: g.list.length });
+
+    g.list.forEach((n, i) => {
+      const ang = i * 2.3999632;
+      const rad = R * 0.86 * Math.sqrt(i + 0.6) / Math.sqrt(g.list.length + 0.6);
+      n.tx = cx + rad * Math.cos(ang);
+      n.ty = cy + rad * Math.sin(ang);
+    });
+  });
+
+  // Les sans-theme forment une couronne exterieure, discrete.
+  const maxR = Math.max(...placed.map(p => Math.hypot(p.cx, p.cy) + p.R), 400);
+  orphans.forEach((n, i) => {
+    const ang = i * 2.3999632;
+    const rad = maxR + 190 + 26 * Math.sqrt(i);
+    n.tx = rad * Math.cos(ang);
+    n.ty = rad * Math.sin(ang);
+  });
+
+  const xs = nodes.map(n => n.tx), ys = nodes.map(n => n.ty);
+  return {
+    x0: Math.min.apply(null, xs) - 140, y0: Math.min.apply(null, ys) - 140,
+    x1: Math.max.apply(null, xs) + 140, y1: Math.max.apply(null, ys) + 140
   };
 }
 
@@ -296,6 +393,71 @@ function renderGalaxy(){
     `${years[0]}–${years[years.length - 1]}`;
 }
 
+/* --- 5bis. switching layouts --------------------------------------------
+   La bascule anime la position de chaque album vers sa nouvelle place. Voir
+   les memes objets se reorganiser dit plus qu'un changement d'ecran : on
+   comprend que c'est le meme fonds, lu autrement.
+------------------------------------------------------------------------- */
+
+let mode = "time";              // "time" | "topics"
+let morph = null;               // animation en cours
+
+function setMode(next){
+  if (next === mode) return;
+  mode = next;
+
+  document.getElementById("byTime").setAttribute("aria-pressed", mode === "time");
+  document.getElementById("byTopic").setAttribute("aria-pressed", mode === "topics");
+  document.getElementById("topicLabels").hidden = mode !== "topics";
+  hideTip();
+
+  const t0 = performance.now(), DUR = 900;
+  const from = nodes.map(n => ({ x: n.x, y: n.y }));
+  const to   = nodes.map(n => mode === "topics" ? { x: n.tx, y: n.ty }
+                                                : { x: n.hx, y: n.hy });
+
+  if (morph) cancelAnimationFrame(morph);
+  (function step(){
+    const p = Math.min(1, (performance.now() - t0) / DUR);
+    const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;   // douceur
+    nodes.forEach((n, i) => {
+      n.x = from[i].x + (to[i].x - from[i].x) * e;
+      n.y = from[i].y + (to[i].y - from[i].y) * e;
+      n.el.style.left = n.x + "px";
+      n.el.style.top  = n.y + "px";
+    });
+    galaxy.kick();
+    morph = p < 1 ? requestAnimationFrame(step) : null;
+    if (p >= 1) {
+      galaxy.setBounds(mode === "topics" ? topicBounds : timeBounds);
+      placeTopicLabels();
+    }
+  })();
+}
+
+// Les noms de themes sont poses hors du calque transforme, comme le libelle
+// de survol : taille constante, aucun recalcul d'echelle.
+function placeTopicLabels(){
+  const box = document.getElementById("topicLabels");
+  if (mode !== "topics") { box.hidden = true; return; }
+  box.hidden = false;
+  box.innerHTML = topicClusters.map((c, i) =>
+    `<div class="tlabel" data-c="${i}"><b>${esc(c.topic.name)}</b>` +
+    `<span>${c.count} albums</span></div>`).join("");
+  moveTopicLabels();
+}
+
+function moveTopicLabels(){
+  if (mode !== "topics") return;
+  const k = galaxy.view.k;
+  document.querySelectorAll(".tlabel").forEach(el => {
+    const c = topicClusters[+el.dataset.c];
+    el.style.left = (c.cx * k + galaxy.view.x) + "px";
+    el.style.top  = (c.cy * k + galaxy.view.y - c.R * k - 26) + "px";
+    el.style.opacity = (c.R * k > 40) ? 1 : 0;
+  });
+}
+
 /* --- 6. level of detail ------------------------------------------------- */
 // Seuls les albums a l'ecran sont traites : poser mille deux cents couvertures
 // couterait une seconde a chaque image.
@@ -326,6 +488,7 @@ function updateDetail(view){
   });
 
   moveTip();
+  moveTopicLabels();
   maybeEnter(k);
 }
 
@@ -532,9 +695,15 @@ function active(){
     notice("Album data has no cover fields (p, s, c) — re-export to see the covers.");
   }
 
-  galaxy.setBounds(layoutGalaxy());
+  timeBounds = layoutGalaxy();
+  galaxy.setBounds(timeBounds);
   renderGalaxy();
+  tagAlbums();
+  topicBounds = layoutTopics();
   galaxy.enable(true);
+
+  document.getElementById("byTime").onclick  = () => setMode("time");
+  document.getElementById("byTopic").onclick = () => setMode("topics");
 
   albumField = makeField(
     document.getElementById("pstage"),

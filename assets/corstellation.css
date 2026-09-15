@@ -137,3 +137,19 @@ nav a:hover{color:var(--ink);border-color:var(--soft)}
 #lightPrev{left:.5rem} #lightNext{right:.5rem}
 
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* --- 10. layout switch and topic labels --------------------------------- */
+#modes{position:fixed;left:1.75rem;bottom:6.2rem;z-index:6;display:flex;gap:.35rem}
+#modes button{font:inherit;font-size:.82rem;padding:.45rem .9rem;cursor:pointer;
+  background:var(--panel);color:var(--soft);border:1px solid var(--rule);border-radius:4px}
+#modes button:hover{color:var(--ink);border-color:var(--soft)}
+#modes button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+/* Les noms de themes vivent hors du calque transforme : taille constante. */
+#topicLabels{position:fixed;inset:0;z-index:5;pointer-events:none}
+.tlabel{position:absolute;transform:translate(-50%,0);white-space:nowrap;
+  text-align:center;transition:opacity .25s ease}
+.tlabel b{display:block;font-size:15px;font-weight:600;color:var(--ink);
+  text-shadow:0 1px 5px #000,0 0 14px #000}
+.tlabel span{display:block;font-size:11px;color:var(--soft);
+  text-shadow:0 1px 4px #000}

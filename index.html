@@ -26,7 +26,13 @@
   </nav>
 </header>
 
+<div id="topicLabels" hidden></div>
 <div id="tip" hidden></div>
+
+<div id="modes" role="group" aria-label="Layout">
+  <button id="byTime"  aria-pressed="true">By time</button>
+  <button id="byTopic" aria-pressed="false">By topic</button>
+</div>
 <div id="years" aria-hidden="true"></div>
 
 <div id="hud">
@@ -70,6 +76,7 @@
      needed to read public photographs. -->
 <script>window.FLICKR_KEY = "7ffcea1edea88202e277b41b0f0e2971";</script>
 <script src="data/albums.js"></script>
+<script src="data/topics.js"></script>
 <script src="assets/corstellation.js"></script>
 </body>
 </html>
